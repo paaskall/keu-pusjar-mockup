@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Laporan</title>
+<link rel="icon" href="assets/logo-lanri.png" type="image/x-icon">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>body{font-family:'Inter',sans-serif;}</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<div id="app"></div>
+
+<script src="js/db.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script>
+  AUTH.requireRole(['keuangan', 'pimpinan']);
+  let filterTahun = 2026;
+
+  function render() {
+    const rows = DB.filter('targets', t => t.tahun === filterTahun).map(t => {
+      const real = DB.filter('realisasis', r => r.targetId === t.id).reduce((s, r) => s + r.nominal, 0);
+      return {
+        bulan: monthName(t.bulan),
+        target: t.nominal,
+        real: real,
+        capaian: t.nominal > 0 ? Math.round((real / t.nominal) * 100) : 0
+      };
+    }).sort((a,b) => {
+      const order = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+      return order.indexOf(a.bulan) - order.indexOf(b.bulan);
+    });
+
+    const totalT = rows.reduce((s, r) => s + r.target, 0);
+    const totalR = rows.reduce((s, r) => s + r.real, 0);
+
+    const main = `
+      <div class="mb-6">
+        <h2 class="text-2xl font-bold text-gray-800">Laporan</h2>
+        <p class="text-sm text-gray-500 mt-1">Laporan realisasi per periode</p>
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-100 p-4 mb-5 shadow-sm flex flex-wrap gap-3 items-end">
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Tahun</label>
+          <select onchange="changeTahun(this.value)" class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+            ${[2026, 2025, 2024].map(y => `<option ${y === filterTahun ? 'selected' : ''}>${y}</option>`).join('')}
+          </select>
+        </div>
+        <div class="ml-auto flex gap-2">
+          <button onclick="doExport('PDF')" class="bg-red-50 hover:bg-red-100 text-red-700 text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2 transition">
+            <i data-lucide="file-text" class="w-4 h-4"></i> PDF
+          </button>
+          <button onclick="doExport('CSV')" class="bg-green-50 hover:bg-green-100 text-green-700 text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2 transition">
+            <i data-lucide="table" class="w-4 h-4"></i> CSV
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+            <tr>
+              <th class="text-left px-4 py-3 font-semibold">Bulan</th>
+              <th class="text-right px-4 py-3 font-semibold">Target</th>
+              <th class="text-right px-4 py-3 font-semibold">Realisasi</th>
+              <th class="text-right px-4 py-3 font-semibold">Capaian</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            ${rows.map(r => `
+              <tr class="hover:bg-blue-50/40 transition">
+                <td class="px-4 py-3 font-medium text-gray-800">${r.bulan}</td>
+                <td class="px-4 py-3 text-right text-blue-700 font-semibold">${formatRupiah(r.target)}</td>
+                <td class="px-4 py-3 text-right text-emerald-700 font-semibold">${formatRupiah(r.real)}</td>
+                <td class="px-4 py-3 text-right">
+                  <span class="font-bold ${r.capaian >= 100 ? 'text-green-700' : r.capaian >= 70 ? 'text-blue-700' : 'text-amber-700'}">${r.capaian}%</span>
+                </td>
+              </tr>`).join('')}
+          </tbody>
+          <tfoot class="bg-gray-50 border-t-2 border-gray-200">
+            <tr>
+              <td class="px-4 py-3 font-bold text-gray-700">TOTAL</td>
+              <td class="px-4 py-3 text-right font-bold text-blue-800">${formatRupiah(totalT)}</td>
+              <td class="px-4 py-3 text-right font-bold text-emerald-700">${formatRupiah(totalR)}</td>
+              <td class="px-4 py-3 text-right font-bold text-amber-700">${totalT ? Math.round((totalR/totalT)*100) : 0}%</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    `;
+
+    renderLayout('laporan.html', main);
+  }
+
+  function changeTahun(y) { filterTahun = Number(y); render(); }
+
+  function doExport(format) {
+    const rows = DB.filter('targets', t => t.tahun === filterTahun).map(t => {
+      const real = DB.filter('realisasis', r => r.targetId === t.id).reduce((s, r) => s + r.nominal, 0);
+      return {
+        Tahun: t.tahun, Bulan: monthName(t.bulan),
+        Target: t.nominal, Realisasi: real,
+        Capaian: t.nominal > 0 ? Math.round((real / t.nominal) * 100) + '%' : '0%'
+      };
+    });
+    exportData(format, `laporan_${filterTahun}`, rows);
+  }
+
+  render();
+</script>
+</body>
+</html>

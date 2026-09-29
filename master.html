@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Master Data</title>
+<link rel="icon" href="assets/logo-lanri.png" type="image/x-icon">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>body{font-family:'Inter',sans-serif;}</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<div id="app"></div>
+
+<script src="js/db.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script>
+  AUTH.requireRole(['admin']);
+
+  const params = new URLSearchParams(window.location.search);
+  const tabs = [
+    { key: 'jenisPengadaan', label: 'Jenis Pengadaan', icon: 'tags' },
+    { key: 'tahapan', label: 'Tahapan', icon: 'list-ordered' },
+    { key: 'status', label: 'Status', icon: 'badge-check' },
+    { key: 'unit', label: 'Unit', icon: 'building-2' },
+    { key: 'kategoriKendala', label: 'Kategori Kendala', icon: 'folder-tree' }
+  ];
+  let activeTab = params.get('tab') || 'jenisPengadaan';
+  if (!tabs.find(t => t.key === activeTab)) activeTab = 'jenisPengadaan';
+
+  function render() {
+    const items = DB.get('master')[activeTab] || [];
+    const tabDef = tabs.find(t => t.key === activeTab);
+
+    const main = `
+      <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-2xl font-bold text-gray-800">Master Data</h2>
+          <p class="text-sm text-gray-500 mt-1">Kelola data referensi sistem</p>
+        </div>
+        <button onclick="openForm()" class="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-md shadow-blue-200 flex items-center gap-2 transition">
+          <i data-lucide="plus" class="w-4 h-4"></i> Tambah ${tabDef.label}
+        </button>
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div class="border-b border-gray-100 overflow-x-auto">
+          <div class="flex">
+            ${tabs.map(t => `
+              <button onclick="switchTab('${t.key}')"
+                class="px-5 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition flex items-center gap-2
+                ${t.key === activeTab
+                  ? 'border-blue-700 text-blue-700 bg-blue-50/50'
+                  : 'border-transparent text-gray-500 hover:text-blue-700 hover:bg-blue-50/30'}">
+                <i data-lucide="${t.icon}" class="w-4 h-4"></i> ${t.label}
+              </button>`).join('')}
+          </div>
+        </div>
+
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+            <tr>
+              <th class="text-left px-4 py-3 font-semibold w-16">ID</th>
+              <th class="text-left px-4 py-3 font-semibold">Nama</th>
+              <th class="text-right px-4 py-3 font-semibold w-32">Aksi</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            ${items.length === 0 ? `<tr><td colspan="3" class="text-center py-8 text-gray-400">Belum ada data</td></tr>` :
+              items.map(it => `
+                <tr class="hover:bg-blue-50/40 transition">
+                  <td class="px-4 py-3 font-mono text-gray-500 text-xs">#${it.id}</td>
+                  <td class="px-4 py-3 font-medium text-gray-800">${it.nama}</td>
+                  <td class="px-4 py-3 text-right">
+                    <button onclick="editItem(${it.id})" class="text-blue-700 hover:bg-blue-100 px-2 py-1 rounded transition" title="Edit">
+                      <i data-lucide="edit-3" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="deleteItem(${it.id})" class="text-red-600 hover:bg-red-100 px-2 py-1 rounded transition ml-1" title="Hapus">
+                      <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                  </td>
+                </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    renderLayout('master.html', main);
+  }
+
+  function switchTab(key) {
+    activeTab = key;
+    window.history.replaceState({}, '', `master.html?tab=${key}`);
+    render();
+  }
+
+  function openForm(id) {
+    const items = DB.get('master')[activeTab] || [];
+    const item = id ? items.find(x => x.id === id) : null;
+
+    Swal.fire({
+      title: item ? 'Edit Data' : 'Tambah Data',
+      input: 'text',
+      inputLabel: 'Nama',
+      inputValue: item ? item.nama : '',
+      showCancelButton: true,
+      confirmButtonText: 'Simpan',
+      cancelButtonText: 'Batal',
+      customClass: {
+        confirmButton: 'bg-blue-700 hover:bg-blue-800 text-white font-medium px-5 py-2.5 rounded-lg mx-1',
+        cancelButton: 'bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2.5 rounded-lg mx-1',
+        input: 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm'
+      },
+      buttonsStyling: false,
+      inputValidator: (v) => (!v || !v.trim()) && 'Nama wajib diisi'
+    }).then(r => {
+      if (!r.isConfirmed) return;
+      const nama = r.value.trim();
+      const db = DB.load();
+      const arr = db.master[activeTab];
+
+      if (item) {
+        const idx = arr.findIndex(x => x.id === id);
+        const before = arr[idx].nama;
+        arr[idx].nama = nama;
+        DB.save(db);
+        recordAudit({ action: 'UPDATE', module: 'Master Data', recordId: `MST-${activeTab}-${id}`, before, after: nama });
+        toastSuccess('Data berhasil diupdate');
+      } else {
+        const maxId = arr.reduce((m, x) => Math.max(m, x.id), 0);
+        arr.push({ id: maxId + 1, nama });
+        DB.save(db);
+        recordAudit({ action: 'CREATE', module: 'Master Data', recordId: `MST-${activeTab}-${maxId + 1}`, after: nama });
+        toastSuccess('Data berhasil ditambahkan');
+      }
+      render();
+    });
+  }
+
+  function editItem(id) { openForm(id); }
+
+  function deleteItem(id) {
+    const item = DB.get('master')[activeTab].find(x => x.id === id);
+    confirmAction(
+      'Hapus data ini?',
+      `"${item.nama}" akan dihapus secara permanen.`,
+      () => {
+        const db = DB.load();
+        db.master[activeTab] = db.master[activeTab].filter(x => x.id !== id);
+        DB.save(db);
+        recordAudit({ action: 'DELETE', module: 'Master Data', recordId: `MST-${activeTab}-${id}`, before: item.nama, after: '-' });
+        toastSuccess('Data berhasil dihapus');
+        render();
+      },
+      { icon: 'warning', confirmText: 'Ya, Hapus' }
+    );
+  }
+
+  render();
+</script>
+</body>
+</html>

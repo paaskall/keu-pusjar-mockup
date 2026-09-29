@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Target</title>
+<link rel="icon" href="assets/logo-lanri.png" type="image/x-icon">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>body{font-family:'Inter',sans-serif;}</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<div id="app"></div>
+
+<script src="js/db.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script>
+  AUTH.requireRole(['keuangan']);
+  let filterTahun = 2026;
+
+  function render() {
+    const targets = DB.filter('targets', t => t.tahun === filterTahun).sort((a,b) => a.bulan - b.bulan);
+    const total = targets.reduce((s, t) => s + t.nominal, 0);
+
+    const main = `
+      <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-2xl font-bold text-gray-800">Kelola Target</h2>
+          <p class="text-sm text-gray-500 mt-1">Tetapkan target per periode bulanan</p>
+        </div>
+        <button onclick="openForm()" class="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-md shadow-blue-200 flex items-center gap-2 transition">
+          <i data-lucide="plus" class="w-4 h-4"></i> Tambah Target
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6">
+        ${statCard({ label: 'Total Target ' + filterTahun, value: formatRupiah(total), icon: 'target', color: 'blue' })}
+        ${statCard({ label: 'Jumlah Bulan', value: targets.length + ' bulan', icon: 'calendar', color: 'emerald' })}
+        ${statCard({ label: 'Rata-rata / Bulan', value: formatRupiah(targets.length ? Math.round(total / targets.length) : 0), icon: 'trending-up', color: 'amber' })}
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-100 p-4 mb-5 shadow-sm flex flex-wrap gap-3 items-end">
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Tahun Anggaran</label>
+          <select id="filterTahun" onchange="changeTahun(this.value)"
+            class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+            ${[2026, 2025, 2024].map(y => `<option ${y === filterTahun ? 'selected' : ''}>${y}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+            <tr>
+              <th class="text-left px-4 py-3 font-semibold">Bulan</th>
+              <th class="text-left px-4 py-3 font-semibold">Target</th>
+              <th class="text-left px-4 py-3 font-semibold">Realisasi</th>
+              <th class="text-left px-4 py-3 font-semibold">Capaian</th>
+              <th class="text-right px-4 py-3 font-semibold w-32">Aksi</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            ${targets.length === 0 ? `<tr><td colspan="5" class="text-center py-8 text-gray-400">Belum ada target untuk tahun ${filterTahun}</td></tr>` :
+              targets.map(t => {
+                const real = DB.filter('realisasis', r => r.targetId === t.id).reduce((s, r) => s + r.nominal, 0);
+                const cap = t.nominal > 0 ? Math.round((real / t.nominal) * 100) : 0;
+                return `
+                  <tr class="hover:bg-blue-50/40 transition">
+                    <td class="px-4 py-3 font-medium text-gray-800">${monthName(t.bulan)}</td>
+                    <td class="px-4 py-3 text-blue-700 font-semibold">${formatRupiah(t.nominal)}</td>
+                    <td class="px-4 py-3 text-emerald-700 font-semibold">${formatRupiah(real)}</td>
+                    <td class="px-4 py-3">
+                      <div class="flex items-center gap-2">
+                        <div class="w-20 bg-gray-200 rounded-full h-2 overflow-hidden">
+                          <div class="bg-gradient-to-r from-blue-700 to-blue-500 h-full rounded-full" style="width:${Math.min(cap, 100)}%"></div>
+                        </div>
+                        <span class="text-xs font-bold text-blue-700">${cap}%</span>
+                      </div>
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                      <button onclick="openForm(${t.id})" class="text-blue-700 hover:bg-blue-100 px-2 py-1 rounded transition" title="Edit">
+                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                      </button>
+                      <button onclick="deleteItem(${t.id})" class="text-red-600 hover:bg-red-100 px-2 py-1 rounded transition ml-1" title="Hapus">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                      </button>
+                    </td>
+                  </tr>`;
+              }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    renderLayout('target.html', main);
+  }
+
+  function changeTahun(y) { filterTahun = Number(y); render(); }
+
+  function openForm(id) {
+    const t = id ? DB.find('targets', x => x.id === id) : null;
+
+    Swal.fire({
+      title: t ? 'Edit Target' : 'Tambah Target',
+      html: `
+        <div class="text-left space-y-3 text-sm">
+          <div>
+            <label class="block font-medium text-gray-700 mb-1">Tahun</label>
+            <input id="f-tahun" type="number" class="w-full px-3 py-2 border border-gray-200 rounded-lg" value="${t ? t.tahun : filterTahun}" />
+          </div>
+          <div>
+            <label class="block font-medium text-gray-700 mb-1">Bulan</label>
+            <select id="f-bulan" class="w-full px-3 py-2 border border-gray-200 rounded-lg">
+              ${Array.from({length:12},(_,i)=>i+1).map(m => `<option value="${m}" ${t?.bulan === m ? 'selected' : ''}>${monthName(m)}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="block font-medium text-gray-700 mb-1">Nominal Target (Rp)</label>
+            <input id="f-nominal" type="number" class="w-full px-3 py-2 border border-gray-200 rounded-lg" value="${t ? t.nominal : 0}" />
+          </div>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Simpan',
+      cancelButtonText: 'Batal',
+      customClass: {
+        confirmButton: 'bg-blue-700 hover:bg-blue-800 text-white font-medium px-5 py-2.5 rounded-lg mx-1',
+        cancelButton: 'bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2.5 rounded-lg mx-1'
+      },
+      buttonsStyling: false,
+      preConfirm: () => {
+        const tahun = Number(document.getElementById('f-tahun').value);
+        const bulan = Number(document.getElementById('f-bulan').value);
+        const nominal = Number(document.getElementById('f-nominal').value);
+        if (!tahun || !bulan || nominal <= 0) {
+          Swal.showValidationMessage('Semua field wajib diisi dengan benar');
+          return false;
+        }
+        return { tahun, bulan, nominal };
+      }
+    }).then(r => {
+      if (!r.isConfirmed) return;
+      const data = r.value;
+      const db = DB.load();
+      const unit = AUTH.currentUser().unit || 'Bagian Keuangan';
+
+      if (t) {
+        const idx = db.targets.findIndex(x => x.id === id);
+        const before = formatRupiah(db.targets[idx].nominal);
+        db.targets[idx] = { ...db.targets[idx], ...data };
+        DB.save(db);
+        recordAudit({ action: 'UPDATE', module: 'Target', recordId: `TGT-${String(id).padStart(5, '0')}`, before, after: formatRupiah(data.nominal) });
+        toastSuccess('Target berhasil diupdate');
+      } else {
+        // Cek duplikat bulan
+        if (db.targets.some(x => x.tahun === data.tahun && x.bulan === data.bulan)) {
+          toastError('Target untuk bulan ini sudah ada');
+          return;
+        }
+        const newId = db.meta.nextTargetId || (Math.max(0, ...db.targets.map(x => x.id)) + 1);
+        db.meta.nextTargetId = newId + 1;
+        db.targets.push({ id: newId, ...data, unit });
+        DB.save(db);
+        recordAudit({ action: 'CREATE', module: 'Target', recordId: `TGT-${String(newId).padStart(5, '0')}`, after: formatRupiah(data.nominal) });
+        toastSuccess('Target berhasil ditambahkan');
+      }
+      render();
+    });
+  }
+
+  function deleteItem(id) {
+    const t = DB.find('targets', x => x.id === id);
+    const realCount = DB.filter('realisasis', r => r.targetId === id).length;
+    confirmAction(
+      'Hapus target ini?',
+      `Target ${monthName(t.bulan)} ${t.tahun} (${formatRupiah(t.nominal)}) akan dihapus.${realCount ? ` Ada ${realCount} realisasi terkait.` : ''}`,
+      () => {
+        const db = DB.load();
+        db.targets = db.targets.filter(x => x.id !== id);
+        db.realisasis = db.realisasis.filter(r => r.targetId !== id);
+        DB.save(db);
+        recordAudit({ action: 'DELETE', module: 'Target', recordId: `TGT-${String(id).padStart(5, '0')}`, before: formatRupiah(t.nominal), after: '-' });
+        toastSuccess('Target berhasil dihapus');
+        render();
+      },
+      { icon: 'warning', confirmText: 'Ya, Hapus' }
+    );
+  }
+
+  render();
+</script>
+</body>
+</html>

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pengadaan</title>
+<link rel="icon" href="assets/logo-lanri.png" type="image/x-icon">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>body{font-family:'Inter',sans-serif;}</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<div id="app"></div>
+
+<script src="js/db.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script>
+  AUTH.requireRole(['keuangan']);
+
+  function render() {
+    const db = DB.load();
+    const pengadaans = db.pengadaans;
+    const jenis = db.master.jenisPengadaan;
+    const status = db.master.status;
+
+    const main = `
+      <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-2xl font-bold text-gray-800">Kelola Pengadaan</h2>
+          <p class="text-sm text-gray-500 mt-1">Kelola paket pengadaan & progress tahapan</p>
+        </div>
+        <button onclick="openForm()" class="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-md shadow-blue-200 flex items-center gap-2 transition">
+          <i data-lucide="plus" class="w-4 h-4"></i> Tambah Paket
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-5 mb-6">
+        ${statCard({ label: 'Total Paket', value: pengadaans.length, icon: 'package', color: 'blue' })}
+        ${statCard({ label: 'Selesai', value: pengadaans.filter(p => p.statusId === 3).length, icon: 'check-circle', color: 'emerald' })}
+        ${statCard({ label: 'Proses', value: pengadaans.filter(p => p.statusId === 2).length, icon: 'loader', color: 'amber' })}
+        ${statCard({ label: 'Draft', value: pengadaans.filter(p => p.statusId === 1).length, icon: 'file-text', color: 'purple' })}
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+            <tr>
+              <th class="text-left px-4 py-3 font-semibold">ID</th>
+              <th class="text-left px-4 py-3 font-semibold">Nama Paket</th>
+              <th class="text-left px-4 py-3 font-semibold">Jenis</th>
+              <th class="text-left px-4 py-3 font-semibold">Progress</th>
+              <th class="text-left px-4 py-3 font-semibold">Status</th>
+              <th class="text-right px-4 py-3 font-semibold w-32">Aksi</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            ${pengadaans.length === 0 ? `<tr><td colspan="6" class="text-center py-8 text-gray-400">Belum ada paket pengadaan</td></tr>` :
+              pengadaans.map(p => {
+                const j = jenis.find(x => x.id === p.jenisId);
+                const s = status.find(x => x.id === p.statusId);
+                return `
+                  <tr class="hover:bg-blue-50/40 transition">
+                    <td class="px-4 py-3 font-mono text-gray-500 text-xs">${p.id}</td>
+                    <td class="px-4 py-3 font-medium text-gray-800">${p.nama}</td>
+                    <td class="px-4 py-3 text-gray-600 text-xs">${j ? j.nama : '-'}</td>
+                    <td class="px-4 py-3">
+                      <div class="flex items-center gap-2">
+                        <div class="w-24 bg-gray-200 rounded-full h-2 overflow-hidden">
+                          <div class="bg-gradient-to-r from-blue-700 to-blue-500 h-full rounded-full" style="width:${p.progress}%"></div>
+                        </div>
+                        <span class="text-xs font-bold text-blue-700">${p.progress}%</span>
+                      </div>
+                    </td>
+                    <td class="px-4 py-3">${badge(s ? s.nama : '-', s ? s.nama : '-')}</td>
+                    <td class="px-4 py-3 text-right">
+                      <button onclick="openForm('${p.id}')" class="text-blue-700 hover:bg-blue-100 px-2 py-1 rounded transition" title="Edit">
+                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                      </button>
+                      <button onclick="updateProgress('${p.id}')" class="text-amber-600 hover:bg-amber-100 px-2 py-1 rounded transition ml-1" title="Update Progress">
+                        <i data-lucide="trending-up" class="w-4 h-4"></i>
+                      </button>
+                      <button onclick="deleteItem('${p.id}')" class="text-red-600 hover:bg-red-100 px-2 py-1 rounded transition ml-1" title="Hapus">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                      </button>
+                    </td>
+                  </tr>`;
+              }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    renderLayout('pengadaan.html', main);
+  }
+
+  function openForm(id) {
+    const p = id ? DB.find('pengadaans', x => x.id === id) : null;
+    const db = DB.load();
+
+    Swal.fire({
+      title: p ? 'Edit Paket Pengadaan' : 'Tambah Paket Pengadaan',
+      html: `
+        <div class="text-left space-y-3 text-sm">
+          <div>
+            <label class="block font-medium text-gray-700 mb-1">Nama Paket</label>
+            <input id="f-nama" class="w-full px-3 py-2 border border-gray-200 rounded-lg" value="${p ? p.nama : ''}" />
+          </div>
+          <div>
+            <label class="block font-medium text-gray-700 mb-1">Jenis Pengadaan</label>
+            <select id="f-jenis" class="w-full px-3 py-2 border border-gray-200 rounded-lg">
+              ${db.master.jenisPengadaan.map(j => `<option value="${j.id}" ${p?.jenisId === j.id ? 'selected' : ''}>${j.nama}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="block font-medium text-gray-700 mb-1">Status</label>
+            <select id="f-status" class="w-full px-3 py-2 border border-gray-200 rounded-lg">
+              ${db.master.status.map(s => `<option value="${s.id}" ${p?.statusId === s.id ? 'selected' : ''}>${s.nama}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="block font-medium text-gray-700 mb-1">Progress (%)</label>
+            <input id="f-progress" type="number" min="0" max="100" class="w-full px-3 py-2 border border-gray-200 rounded-lg" value="${p ? p.progress : 0}" />
+          </div>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Simpan',
+      cancelButtonText: 'Batal',
+      customClass: {
+        confirmButton: 'bg-blue-700 hover:bg-blue-800 text-white font-medium px-5 py-2.5 rounded-lg mx-1',
+        cancelButton: 'bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2.5 rounded-lg mx-1'
+      },
+      buttonsStyling: false,
+      preConfirm: () => {
+        const nama = document.getElementById('f-nama').value.trim();
+        const jenisId = Number(document.getElementById('f-jenis').value);
+        const statusId = Number(document.getElementById('f-status').value);
+        const progress = Number(document.getElementById('f-progress').value);
+        if (!nama) { Swal.showValidationMessage('Nama paket wajib diisi'); return false; }
+        if (progress < 0 || progress > 100) { Swal.showValidationMessage('Progress 0-100'); return false; }
+        return { nama, jenisId, statusId, progress };
+      }
+    }).then(r => {
+      if (!r.isConfirmed) return;
+      const data = r.value;
+      const db = DB.load();
+
+      if (p) {
+        const idx = db.pengadaans.findIndex(x => x.id === id);
+        const before = `${db.pengadaans[idx].nama} (${db.pengadaans[idx].progress}%)`;
+        db.pengadaans[idx] = { ...db.pengadaans[idx], ...data };
+        DB.save(db);
+        recordAudit({ action: 'UPDATE', module: 'Pengadaan', recordId: p.id, before, after: `${data.nama} (${data.progress}%)` });
+        toastSuccess('Pengadaan berhasil diupdate');
+      } else {
+        const newId = generatePengadaanId();
+        db.pengadaans.push({ id: newId, ...data, tahapanIds: [], createdAt: new Date().toISOString().substring(0, 10) });
+        DB.save(db);
+        recordAudit({ action: 'CREATE', module: 'Pengadaan', recordId: newId, after: `${data.nama}` });
+        toastSuccess('Pengadaan berhasil ditambahkan');
+      }
+      render();
+    });
+  }
+
+  function updateProgress(id) {
+    const p = DB.find('pengadaans', x => x.id === id);
+    Swal.fire({
+      title: 'Update Progress',
+      input: 'number',
+      inputValue: p.progress,
+      inputLabel: `Progress untuk ${p.nama} (0-100)`,
+      inputAttributes: { min: 0, max: 100 },
+      showCancelButton: true,
+      confirmButtonText: 'Update',
+      cancelButtonText: 'Batal',
+      customClass: {
+        confirmButton: 'bg-blue-700 hover:bg-blue-800 text-white font-medium px-5 py-2.5 rounded-lg mx-1',
+        cancelButton: 'bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2.5 rounded-lg mx-1'
+      },
+      buttonsStyling: false,
+      inputValidator: (v) => (v < 0 || v > 100 || v === '') && 'Nilai 0-100'
+    }).then(r => {
+      if (!r.isConfirmed) return;
+      const val = Number(r.value);
+      const before = p.progress + '%';
+      DB.update('pengadaans', id, { progress: val });
+      // Auto set status selesai jika 100
+      if (val === 100) DB.update('pengadaans', id, { statusId: 3 });
+      recordAudit({ action: 'UPDATE', module: 'Pengadaan', recordId: id, before, after: val + '%' });
+      toastSuccess('Progress berhasil diupdate');
+      render();
+    });
+  }
+
+  function deleteItem(id) {
+    const p = DB.find('pengadaans', x => x.id === id);
+    confirmAction('Hapus paket ini?', `"${p.nama}" akan dihapus.`, () => {
+      DB.remove('pengadaans', id, 'id');
+      recordAudit({ action: 'DELETE', module: 'Pengadaan', recordId: id, before: p.nama, after: '-' });
+      toastSuccess('Paket berhasil dihapus');
+      render();
+    }, { icon: 'warning', confirmText: 'Ya, Hapus' });
+  }
+
+  render();
+</script>
+</body>
+</html>

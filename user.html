@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kelola User</title>
+<link rel="icon" href="assets/logo-lanri.png" type="image/x-icon">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>body{font-family:'Inter',sans-serif;}</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<div id="app"></div>
+
+<script src="js/db.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script>
+  AUTH.requireRole(['admin']);
+
+  function render() {
+    const users = DB.get('users');
+
+    const main = `
+      <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-2xl font-bold text-gray-800">Kelola User</h2>
+          <p class="text-sm text-gray-500 mt-1">Manajemen akun pengguna sistem</p>
+        </div>
+        <button onclick="openForm()" class="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-md shadow-blue-200 flex items-center gap-2 transition">
+          <i data-lucide="user-plus" class="w-4 h-4"></i> Tambah User
+        </button>
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+              <tr>
+                <th class="text-left px-4 py-3 font-semibold">User</th>
+                <th class="text-left px-4 py-3 font-semibold">Username</th>
+                <th class="text-left px-4 py-3 font-semibold">Role</th>
+                <th class="text-left px-4 py-3 font-semibold">Unit</th>
+                <th class="text-left px-4 py-3 font-semibold">Status</th>
+                <th class="text-right px-4 py-3 font-semibold w-32">Aksi</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              ${users.map(u => `
+                <tr class="hover:bg-blue-50/40 transition">
+                  <td class="px-4 py-3">
+                    <div class="flex items-center gap-3">
+                      <div class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-700 to-blue-500 flex items-center justify-center text-white text-sm font-bold">
+                        ${u.name.charAt(0)}
+                      </div>
+                      <span class="font-medium text-gray-800">${u.name}</span>
+                    </div>
+                  </td>
+                  <td class="px-4 py-3 text-gray-600 font-mono text-xs">${u.username}</td>
+                  <td class="px-4 py-3">
+                    ${badge(u.role.toUpperCase(), u.role === 'admin' ? 'UPDATE' : u.role === 'keuangan' ? 'CREATE' : 'DELETE')}
+                  </td>
+                  <td class="px-4 py-3 text-gray-600 text-xs">${u.unit || '-'}</td>
+                  <td class="px-4 py-3">
+                    ${u.active
+                      ? '<span class="text-green-700 bg-green-100 px-2 py-1 rounded-full text-xs font-semibold">Aktif</span>'
+                      : '<span class="text-gray-500 bg-gray-100 px-2 py-1 rounded-full text-xs font-semibold">Nonaktif</span>'}
+                  </td>
+                  <td class="px-4 py-3 text-right">
+                    <button onclick="toggleActive(${u.id})" class="text-amber-600 hover:bg-amber-100 px-2 py-1 rounded transition" title="Toggle Status">
+                      <i data-lucide="${u.active ? 'toggle-right' : 'toggle-left'}" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="openForm(${u.id})" class="text-blue-700 hover:bg-blue-100 px-2 py-1 rounded transition ml-1" title="Edit">
+                      <i data-lucide="edit-3" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="deleteUser(${u.id})" class="text-red-600 hover:bg-red-100 px-2 py-1 rounded transition ml-1" title="Hapus">
+                      <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                  </td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    renderLayout('user.html', main);
+  }
+
+  function openForm(id) {
+    const user = id ? DB.find('users', u => u.id === id) : null;
+    const units = DB.get('master').unit.map(u => u.nama);
+
+    Swal.fire({
+      title: user ? 'Edit User' : 'Tambah User',
+      html: `
+        <div class="text-left space-y-3 text-sm">
+          <div>
+            <label class="block font-medium text-gray-700 mb-1">Nama Lengkap</label>
+            <input id="f-name" class="w-full px-3 py-2 border border-gray-200 rounded-lg" value="${user ? user.name : ''}" />
+          </div>
+          <div>
+            <label class="block font-medium text-gray-700 mb-1">Username</label>
+            <input id="f-username" class="w-full px-3 py-2 border border-gray-200 rounded-lg" value="${user ? user.username : ''}" ${user ? 'disabled' : ''} />
+          </div>
+          <div>
+            <label class="block font-medium text-gray-700 mb-1">Password ${user ? '(kosongkan jika tidak diubah)' : ''}</label>
+            <input id="f-password" type="text" class="w-full px-3 py-2 border border-gray-200 rounded-lg" value="${user ? '' : 'password123'}" />
+          </div>
+          <div>
+            <label class="block font-medium text-gray-700 mb-1">Role</label>
+            <select id="f-role" class="w-full px-3 py-2 border border-gray-200 rounded-lg">
+              <option value="admin" ${user?.role === 'admin' ? 'selected' : ''}>Admin</option>
+              <option value="keuangan" ${user?.role === 'keuangan' ? 'selected' : ''}>User Keuangan</option>
+              <option value="pimpinan" ${user?.role === 'pimpinan' ? 'selected' : ''}>Pimpinan</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-medium text-gray-700 mb-1">Unit</label>
+            <select id="f-unit" class="w-full px-3 py-2 border border-gray-200 rounded-lg">
+              ${units.map(un => `<option ${user?.unit === un ? 'selected' : ''}>${un}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Simpan',
+      cancelButtonText: 'Batal',
+      customClass: {
+        confirmButton: 'bg-blue-700 hover:bg-blue-800 text-white font-medium px-5 py-2.5 rounded-lg mx-1',
+        cancelButton: 'bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2.5 rounded-lg mx-1'
+      },
+      buttonsStyling: false,
+      preConfirm: () => {
+        const name = document.getElementById('f-name').value.trim();
+        const username = document.getElementById('f-username').value.trim();
+        const password = document.getElementById('f-password').value.trim();
+        const role = document.getElementById('f-role').value;
+        const unit = document.getElementById('f-unit').value;
+        if (!name || !username) {
+          Swal.showValidationMessage('Nama & username wajib diisi');
+          return false;
+        }
+        if (!user && !password) {
+          Swal.showValidationMessage('Password wajib diisi untuk user baru');
+          return false;
+        }
+        return { name, username, password, role, unit };
+      }
+    }).then(r => {
+      if (!r.isConfirmed) return;
+      const data = r.value;
+      const db = DB.load();
+
+      if (user) {
+        const idx = db.users.findIndex(u => u.id === id);
+        const before = `${db.users[idx].name} (${db.users[idx].role})`;
+        db.users[idx] = { ...db.users[idx], name: data.name, role: data.role, unit: data.unit };
+        if (data.password) db.users[idx].password = data.password;
+        DB.save(db);
+        recordAudit({ action: 'UPDATE', module: 'User', recordId: `USR-${String(id).padStart(5, '0')}`, before, after: `${data.name} (${data.role})` });
+        toastSuccess('User berhasil diupdate');
+      } else {
+        // Cek duplikat username
+        if (db.users.some(u => u.username === data.username)) {
+          toastError('Username sudah dipakai');
+          return;
+        }
+        const newId = db.meta.nextUserId || (Math.max(...db.users.map(u => u.id)) + 1);
+        db.meta.nextUserId = newId + 1;
+        db.users.push({ id: newId, username: data.username, password: data.password, name: data.name, role: data.role, unit: data.unit, active: true });
+        DB.save(db);
+        recordAudit({ action: 'CREATE', module: 'User', recordId: `USR-${String(newId).padStart(5, '0')}`, after: `${data.name} (${data.role})` });
+        toastSuccess('User berhasil ditambahkan');
+      }
+      render();
+    });
+  }
+
+  function toggleActive(id) {
+    const db = DB.load();
+    const idx = db.users.findIndex(u => u.id === id);
+    const u = db.users[idx];
+    // Cegah nonaktifkan diri sendiri
+    if (AUTH.currentUser().id === id) {
+      toastError('Tidak bisa menonaktifkan akun sendiri');
+      return;
+    }
+    u.active = !u.active;
+    DB.save(db);
+    recordAudit({ action: 'UPDATE', module: 'User', recordId: `USR-${String(id).padStart(5, '0')}`, before: `Aktif: ${!u.active}`, after: `Aktif: ${u.active}` });
+    toastSuccess(`User ${u.active ? 'diaktifkan' : 'dinonaktifkan'}`);
+    render();
+  }
+
+  function deleteUser(id) {
+    if (AUTH.currentUser().id === id) {
+      toastError('Tidak bisa menghapus akun sendiri');
+      return;
+    }
+    const u = DB.find('users', x => x.id === id);
+    confirmAction(
+      'Hapus user ini?',
+      `"${u.name}" (${u.username}) akan dihapus.`,
+      () => {
+        DB.remove('users', id);
+        recordAudit({ action: 'DELETE', module: 'User', recordId: `USR-${String(id).padStart(5, '0')}`, before: `${u.name} (${u.username})`, after: '-' });
+        toastSuccess('User berhasil dihapus');
+        render();
+      },
+      { icon: 'warning', confirmText: 'Ya, Hapus' }
+    );
+  }
+
+  render();
+</script>
+</body>
+</html>

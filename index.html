@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SITARA - Login</title>
+<link rel="icon" href="assets/logo-lanri.png" type="image/x-icon">
+<link rel="icon" href="assets/logo-lanri.png" type="image/x-icon">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Inter', sans-serif; }
+
+  /* Panel kiri gradient overlay di atas foto gedung */
+  .hero-panel {
+    background:
+      linear-gradient(135deg, rgba(30, 58, 138, 0.92) 0%, rgba(30, 64, 175, 0.78) 50%, rgba(37, 99, 235, 0.55) 100%),
+      url('assets/gedung-lanri.png') center/cover no-repeat;
+    position: relative;
+  }
+
+  /* Kalau foto tidak ada, gradient tetap tampil */
+  .hero-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+    z-index: -1;
+  }
+
+  /* Scrollbar halus untuk panel kanan */
+  .form-panel::-webkit-scrollbar { width: 6px; }
+  .form-panel::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+</style>
+</head>
+<body class="h-screen overflow-hidden bg-white">
+
+<div class="flex h-screen">
+
+  <!-- ================= PANEL KIRI — BRANDING ================= -->
+  <div class="hidden lg:flex lg:w-1/2 hero-panel text-white flex-col justify-between p-12 relative overflow-hidden">
+
+    <!-- Logo kiri atas -->
+    <div class="relative z-10">
+      <div class="flex items-center gap-3">
+        <div class="w-14 h-14 rounded-2xl bg-white/95 p-2 shadow-lg">
+          <img src="assets/logo-lanri.png" alt="SITARA" class="w-full h-full object-contain" />
+        </div>
+        <div>
+          <h2 class="text-xl font-extrabold tracking-wide">SITARA</h2>
+          <p class="text-[11px] text-blue-100 tracking-widest uppercase">Sistem Target &amp; Realisasi</p>
+        </div>
+      </div>
+      <p class="text-[10px] text-blue-200 tracking-[0.2em] uppercase mt-6">PUSJAR SKMP</p>
+    </div>
+
+    <!-- Headline besar -->
+    <div class="relative z-10 max-w-lg">
+      <h1 class="text-4xl xl:text-5xl font-extrabold leading-tight mb-6">
+        Sistem Monitoring<br />
+        Target &amp; Realisasi<br />
+        Keuangan
+      </h1>
+      <p class="text-blue-100 text-sm leading-relaxed max-w-md">
+        Bersama membangun tata kelola keuangan yang transparan,
+        akuntabel, dan terukur untuk Indonesia yang lebih baik.
+      </p>
+    </div>
+
+    <!-- Footer info -->
+    <div class="relative z-10 flex items-center gap-3 text-xs text-blue-200">
+      <div class="w-8 h-px bg-blue-300"></div>
+      <span>© 2026 SITARA · PUSJAR SKMP</span>
+    </div>
+
+    <!-- Ornamen dekoratif -->
+    <div class="absolute -top-24 -right-24 w-96 h-96 bg-blue-400/20 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute -bottom-32 -left-32 w-[400px] h-[400px] bg-blue-300/20 rounded-full blur-3xl pointer-events-none"></div>
+
+    <!-- Grid pattern overlay -->
+    <svg class="absolute inset-0 w-full h-full opacity-[0.07] pointer-events-none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+          <path d="M 32 0 L 0 0 0 32" fill="none" stroke="white" stroke-width="1"/>
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#grid)"/>
+    </svg>
+  </div>
+
+  <!-- ================= PANEL KANAN — FORM LOGIN ================= -->
+  <div class="w-full lg:w-1/2 flex flex-col form-panel overflow-y-auto">
+
+    <!-- Header mobile (logo, tampil hanya di mobile) -->
+    <div class="lg:hidden flex items-center justify-between px-6 pt-6 pb-2">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-blue-50 p-1.5">
+          <img src="assets/logo-lanri.png" alt="SITARA" class="w-full h-full object-contain" />
+        </div>
+        <div>
+          <h2 class="text-base font-extrabold text-blue-900 tracking-wide">SITARA</h2>
+          <p class="text-[9px] text-gray-500 tracking-wider uppercase">Sistem Target &amp; Realisasi</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Konten form (vertikal center) -->
+    <div class="flex-1 flex items-center justify-center px-6 py-10 lg:px-16">
+      <div class="w-full max-w-md">
+
+        <!-- Logo besar di atas form -->
+        <div class="flex flex-col items-center text-center mb-8">
+          <div class="w-24 h-24 mb-4">
+            <img src="assets/logo-lanri.png" alt="SITARA Logo" class="w-full h-full object-contain" />
+          </div>
+          <h2 class="text-xl font-extrabold text-blue-900 tracking-wide">SITARA</h2>
+          <p class="text-[10px] text-gray-500 tracking-[0.25em] uppercase mt-1">Sistem Target &amp; Realisasi</p>
+
+          <h1 class="text-xl font-bold text-gray-800">Masuk ke Akun Anda</h1>
+          <p class="text-xs text-gray-500 mt-1"></p>
+        </div>
+
+        <!-- Form -->
+        <form id="loginForm" class="space-y-4">
+
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Username</label>
+            <div class="relative">
+              <i data-lucide="mail" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+              <input id="username" type="text" value="admin" placeholder="Masukkan username"
+                class="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" required />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Password</label>
+            <div class="relative">
+              <i data-lucide="lock" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+              <input id="password" type="password" value="admin" placeholder="Masukkan password"
+                class="w-full pl-10 pr-10 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" required />
+              <button type="button" onclick="togglePassword()" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition">
+                <i data-lucide="eye" id="eyeIcon" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between text-sm">
+            <label class="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" class="w-4 h-4 rounded border-gray-300 text-blue-700 focus:ring-blue-500" />
+              <span class="text-gray-600">Ingat saya</span>
+            </label>
+            <a href="#" onclick="lupaPassword(event)" class="text-blue-700 hover:text-blue-900 hover:underline font-medium">
+              Lupa password?
+            </a>
+          </div>
+
+          <button type="submit"
+            class="w-full bg-gradient-to-r from-blue-800 to-blue-600 hover:from-blue-900 hover:to-blue-700 text-white font-semibold py-3 rounded-lg transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2 mt-2">
+            <i data-lucide="log-in" class="w-4 h-4"></i>
+            MASUK
+          </button>
+        </form>
+
+        <!-- Quick login -->
+        <div class="mt-7 pt-6 border-t border-gray-100">
+          <p class="text-[11px] text-gray-500 text-center mb-3 font-semibold uppercase tracking-wider">Atau masuk cepat sebagai</p>
+          <div class="grid grid-cols-3 gap-2">
+            <button onclick="quickLogin('admin')" class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold py-2.5 rounded-lg transition flex flex-col items-center gap-1">
+              <i data-lucide="shield-check" class="w-4 h-4"></i> Admin
+            </button>
+            <button onclick="quickLogin('keuangan')" class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold py-2.5 rounded-lg transition flex flex-col items-center gap-1">
+              <i data-lucide="wallet" class="w-4 h-4"></i> Keuangan
+            </button>
+            <button onclick="quickLogin('pimpinan')" class="text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold py-2.5 rounded-lg transition flex flex-col items-center gap-1">
+              <i data-lucide="crown" class="w-4 h-4"></i> Pimpinan
+            </button>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="mt-10 pt-6 border-t border-gray-100 text-center">
+          <div class="inline-flex items-center gap-2 text-xs text-gray-500">
+            <img src="assets/logo-lanri.png" alt="Logo" class="w-6 h-6 object-contain" />
+            <div class="text-left">
+              <p class="font-bold text-gray-700 leading-tight">SITARA</p>
+              <p class="text-[10px] text-gray-400 leading-tight">Sistem Target &amp; Realisasi Keuangan</p>
+            </div>
+          </div>
+          <p class="text-[10px] text-gray-400 mt-3">© 2026 SITARA - PUSJAR SKMP</p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="js/db.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script>
+  if (window.lucide) lucide.createIcons();
+
+  // Kalau sudah login, redirect
+  const existing = AUTH.currentUser();
+  if (existing) {
+    window.location.href = existing.role === 'admin' ? 'admin.html'
+                       : existing.role === 'keuangan' ? 'keuangan.html' : 'pimpinan.html';
+  }
+
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value.trim();
+
+    const res = AUTH.login(username, password);
+    if (!res.ok) {
+      Toast.fire({ icon: 'error', title: res.message });
+      return;
+    }
+
+    Toast.fire({ icon: 'success', title: `Login berhasil - Selamat datang, ${res.user.name}` });
+    setTimeout(() => {
+      window.location.href = res.user.role === 'admin' ? 'admin.html'
+                        : res.user.role === 'keuangan' ? 'keuangan.html' : 'pimpinan.html';
+    }, 700);
+  });
+
+  function quickLogin(role) {
+    const res = AUTH.loginAs(role);
+    if (!res.ok) {
+      Toast.fire({ icon: 'error', title: res.message });
+      return;
+    }
+    Toast.fire({ icon: 'success', title: `Login sebagai ${res.user.name}` });
+    setTimeout(() => {
+      window.location.href = role === 'admin' ? 'admin.html'
+                        : role === 'keuangan' ? 'keuangan.html' : 'pimpinan.html';
+    }, 600);
+  }
+
+  function togglePassword() {
+    const inp = document.getElementById('password');
+    const icon = document.getElementById('eyeIcon');
+    if (inp.type === 'password') {
+      inp.type = 'text';
+      icon.setAttribute('data-lucide', 'eye-off');
+    } else {
+      inp.type = 'password';
+      icon.setAttribute('data-lucide', 'eye');
+    }
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function lupaPassword(e) {
+    e.preventDefault();
+    Swal.fire({
+      icon: 'info',
+      title: 'Lupa Password?',
+      html: `<div class="text-sm text-left">
+        <p class="mb-3 text-gray-600">Gunakan salah satu akun demo berikut:</p>
+        <table class="w-full text-xs bg-gray-50 rounded-lg overflow-hidden">
+          <thead class="bg-gray-100">
+            <tr><th class="text-left px-3 py-2">Username</th><th class="text-left px-3 py-2">Password</th></tr>
+          </thead>
+          <tbody>
+            <tr class="border-t border-gray-100"><td class="px-3 py-2 font-mono">admin</td><td class="px-3 py-2 font-mono">admin</td></tr>
+            <tr class="border-t border-gray-100"><td class="px-3 py-2 font-mono">keuangan</td><td class="px-3 py-2 font-mono">keuangan</td></tr>
+            <tr class="border-t border-gray-100"><td class="px-3 py-2 font-mono">budi</td><td class="px-3 py-2 font-mono">budi</td></tr>
+            <tr class="border-t border-gray-100"><td class="px-3 py-2 font-mono">pimpinan</td><td class="px-3 py-2 font-mono">pimpinan</td></tr>
+          </tbody>
+        </table>
+      </div>`,
+      confirmButtonText: 'Mengerti'
+    });
+  }
+</script>
+</body>
+</html>
