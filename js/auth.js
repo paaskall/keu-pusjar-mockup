@@ -128,7 +128,7 @@ function buildSidebar(activePage) {
       <img src="assets/logo-lanri.png" alt="SIKAP" class="w-10 h-10 object-contain rounded-xl" />
       <div>
         <h3 class="text-base font-bold text-blue-900 leading-tight tracking-wide">SIKAP</h3>
-        <p class="text-[10px] text-black-500 tracking-wider">Sistem Target &amp; Realisasi</p>
+        <p class="text-[10px] text-black-500 tracking-wider">Sistem Informasi Keuangan &amp; Anggaran Pusjar SKMP</p>
       </div>
     </div>
     <nav class="flex-1 overflow-y-auto py-3">`;
@@ -176,7 +176,7 @@ function buildTopbar() {
       </button>
       <img src="assets/logo-lanri.png" alt="SIKAP" class="w-7 h-7 object-contain rounded-md" />
       <span class="font-bold tracking-wider text-sm text-blue-900">SIKAP</span>
-      <span class="hidden sm:inline text-xs text-gray-400 border-l border-gray-200 pl-3 ml-1">Sistem Target &amp; Realisasi</span>
+      <span class="hidden sm:inline text-xs text-gray-400 border-l border-gray-200 pl-3 ml-1">Sistem Informasi Keuangan &amp; Anggaran Pusjar SKMP</span>
     </div>
     <div class="flex items-center gap-4 text-sm">
       <div class="hidden sm:flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full border border-blue-100">
