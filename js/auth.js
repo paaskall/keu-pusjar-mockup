@@ -125,9 +125,9 @@ function buildSidebar(activePage) {
   const menus = roleMenus[u.role] || [];
   let html = `
     <div class="p-5 border-b border-gray-100 flex items-center gap-3">
-      <img src="assets/logo-lanri.png" alt="SITARA" class="w-10 h-10 object-contain rounded-xl" />
+      <img src="assets/logo-lanri.png" alt="SIKAP" class="w-10 h-10 object-contain rounded-xl" />
       <div>
-        <h3 class="text-base font-bold text-blue-900 leading-tight tracking-wide">SITARA</h3>
+        <h3 class="text-base font-bold text-blue-900 leading-tight tracking-wide">SIKAP</h3>
         <p class="text-[10px] text-black-500 tracking-wider">Sistem Target &amp; Realisasi</p>
       </div>
     </div>
@@ -174,8 +174,8 @@ function buildTopbar() {
       <button class="md:hidden text-gray-700 hover:text-blue-700 transition" onclick="document.querySelector('aside').classList.toggle('hidden')">
         <i data-lucide="menu" class="w-5 h-5"></i>
       </button>
-      <img src="assets/logo-lanri.png" alt="SITARA" class="w-7 h-7 object-contain rounded-md" />
-      <span class="font-bold tracking-wider text-sm text-blue-900">SITARA</span>
+      <img src="assets/logo-lanri.png" alt="SIKAP" class="w-7 h-7 object-contain rounded-md" />
+      <span class="font-bold tracking-wider text-sm text-blue-900">SIKAP</span>
       <span class="hidden sm:inline text-xs text-gray-400 border-l border-gray-200 pl-3 ml-1">Sistem Target &amp; Realisasi</span>
     </div>
     <div class="flex items-center gap-4 text-sm">
