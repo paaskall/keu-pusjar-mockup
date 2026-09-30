@@ -156,4 +156,69 @@ function exportData(format, filename, rows) {
       toastSuccess(`Export ${format} berhasil`);
     }
   );
+
+  // ============ FORMAT NOMINAL INPUT ============
+  /**
+   * Format input angka dengan pemisah ribuan titik (format Indonesia)
+   * Contoh: 420000000 → "420.000.000"
+   */
+  function formatNumberInput(value) {
+    if (value === null || value === undefined || value === '') return '';
+    // Hapus semua karakter selain angka
+    const numeric = String(value).replace(/\D/g, '');
+    if (numeric === '') return '';
+    // Format dengan titik sebagai pemisah ribuan
+    return Number(numeric).toLocaleString('id-ID');
+  }
+
+  /**
+   * Parse nilai input yang sudah terformat menjadi angka murni
+   * Contoh: "420.000.000" → 420000000
+   */
+  function parseNumberInput(value) {
+    if (value === null || value === undefined || value === '') return 0;
+    const numeric = String(value).replace(/\D/g, '');
+    return numeric === '' ? 0 : Number(numeric);
+  }
+
+  /**
+   * Attach auto-format ke input element
+   * @param {HTMLInputElement} input
+   */
+  function attachNumberFormat(input) {
+    if (!input) return;
+
+    // Set initial value format
+    if (input.value && !input.value.includes('.')) {
+      input.value = formatNumberInput(input.value);
+    }
+
+    // Format saat mengetik
+    input.addEventListener('input', (e) => {
+      const cursorPos = e.target.selectionStart;
+      const oldLength = e.target.value.length;
+
+      e.target.value = formatNumberInput(e.target.value);
+
+      // Kembalikan posisi kursor (perkiraan)
+      const newLength = e.target.value.length;
+      const newPos = cursorPos + (newLength - oldLength);
+      e.target.setSelectionRange(newPos, newPos);
+    });
+
+    // Cegah input non-numerik
+    input.addEventListener('keypress', (e) => {
+      if (!/[0-9]/.test(e.key) && !['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
+        e.preventDefault();
+      }
+    });
+
+    // Paste handler
+    input.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const pasted = (e.clipboardData || window.clipboardData).getData('text');
+      const numeric = pasted.replace(/\D/g, '');
+      e.target.value = formatNumberInput(numeric);
+    });
+  }
 }

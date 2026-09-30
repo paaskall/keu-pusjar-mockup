@@ -3,13 +3,19 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Target</title>
-<link rel="icon" href="assets/logo-lanri.png" type="image/x-icon">
+<title>SITARA — Kelola Target</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<style>body{font-family:'Inter',sans-serif;}</style>
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  /* Khusus input nominal */
+  .input-nominal {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+</style>
 </head>
 <body class="bg-gray-50 text-gray-800">
 <div id="app"></div>
@@ -21,123 +27,318 @@
   AUTH.requireRole(['keuangan']);
   let filterTahun = 2026;
 
+  // ============ FORMAT NOMINAL HELPERS ============
+  // (Kalau sudah ada di js/app.js, hapus bagian ini agar tidak duplikat)
+  if (typeof formatNumberInput !== 'function') {
+    window.formatNumberInput = function(value) {
+      if (value === null || value === undefined || value === '') return '';
+      const numeric = String(value).replace(/\D/g, '');
+      if (numeric === '') return '';
+      return Number(numeric).toLocaleString('id-ID');
+    };
+  }
+
+  if (typeof parseNumberInput !== 'function') {
+    window.parseNumberInput = function(value) {
+      if (value === null || value === undefined || value === '') return 0;
+      const numeric = String(value).replace(/\D/g, '');
+      return numeric === '' ? 0 : Number(numeric);
+    };
+  }
+
+  if (typeof attachNumberFormat !== 'function') {
+    window.attachNumberFormat = function(input) {
+      if (!input) return;
+
+      // Set initial value
+      if (input.value && !input.value.includes('.')) {
+        input.value = formatNumberInput(input.value);
+      }
+
+      // Format saat mengetik
+      input.addEventListener('input', (e) => {
+        const cursorPos = e.target.selectionStart;
+        const oldLength = e.target.value.length;
+
+        e.target.value = formatNumberInput(e.target.value);
+
+        const newLength = e.target.value.length;
+        const newPos = cursorPos + (newLength - oldLength);
+        try { e.target.setSelectionRange(newPos, newPos); } catch(_) {}
+      });
+
+      // Cegah karakter non-numerik
+      input.addEventListener('keypress', (e) => {
+        if (!/[0-9]/.test(e.key) &&
+            !['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
+          e.preventDefault();
+        }
+      });
+
+      // Paste handler
+      input.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const pasted = (e.clipboardData || window.clipboardData).getData('text');
+        const numeric = pasted.replace(/\D/g, '');
+        e.target.value = formatNumberInput(numeric);
+      });
+    };
+  }
+
+  // ============ RENDER UTAMA ============
   function render() {
     const targets = DB.filter('targets', t => t.tahun === filterTahun).sort((a,b) => a.bulan - b.bulan);
     const total = targets.reduce((s, t) => s + t.nominal, 0);
+    const totalRealisasi = targets.reduce((s, t) => {
+      return s + DB.filter('realisasis', r => r.targetId === t.id).reduce((a, r) => a + r.nominal, 0);
+    }, 0);
+    const capaianTotal = total > 0 ? Math.round((totalRealisasi / total) * 100) : 0;
 
     const main = `
       <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 class="text-2xl font-bold text-gray-800">Kelola Target</h2>
-          <p class="text-sm text-gray-500 mt-1">Tetapkan target per periode bulanan</p>
+          <p class="text-sm text-gray-500 mt-1">Tetapkan target keuangan per periode bulanan</p>
         </div>
         <button onclick="openForm()" class="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-md shadow-blue-200 flex items-center gap-2 transition">
           <i data-lucide="plus" class="w-4 h-4"></i> Tambah Target
         </button>
       </div>
 
+      <!-- Stat Cards -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6">
-        ${statCard({ label: 'Total Target ' + filterTahun, value: formatRupiah(total), icon: 'target', color: 'blue' })}
-        ${statCard({ label: 'Jumlah Bulan', value: targets.length + ' bulan', icon: 'calendar', color: 'emerald' })}
-        ${statCard({ label: 'Rata-rata / Bulan', value: formatRupiah(targets.length ? Math.round(total / targets.length) : 0), icon: 'trending-up', color: 'amber' })}
+        ${statCard({
+          label: 'Total Target ' + filterTahun,
+          value: formatRupiah(total),
+          icon: 'target',
+          color: 'blue'
+        })}
+        ${statCard({
+          label: 'Total Realisasi',
+          value: formatRupiah(totalRealisasi),
+          icon: 'trending-up',
+          color: 'emerald'
+        })}
+        ${statCard({
+          label: 'Capaian Keseluruhan',
+          value: capaianTotal + '%',
+          icon: 'percent',
+          color: 'amber'
+        })}
       </div>
 
+      <!-- Filter Tahun -->
       <div class="bg-white rounded-xl border border-gray-100 p-4 mb-5 shadow-sm flex flex-wrap gap-3 items-end">
         <div>
           <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Tahun Anggaran</label>
           <select id="filterTahun" onchange="changeTahun(this.value)"
-            class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+            class="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
             ${[2026, 2025, 2024].map(y => `<option ${y === filterTahun ? 'selected' : ''}>${y}</option>`).join('')}
           </select>
         </div>
+        <div class="text-xs text-gray-500 ml-auto self-center">
+          ${targets.length} bulan terdaftar · Rata-rata: <b class="text-blue-700">${formatRupiah(targets.length ? Math.round(total / targets.length) : 0)}</b>
+        </div>
       </div>
 
+      <!-- Tabel -->
       <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <table class="w-full text-sm">
-          <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
-            <tr>
-              <th class="text-left px-4 py-3 font-semibold">Bulan</th>
-              <th class="text-left px-4 py-3 font-semibold">Target</th>
-              <th class="text-left px-4 py-3 font-semibold">Realisasi</th>
-              <th class="text-left px-4 py-3 font-semibold">Capaian</th>
-              <th class="text-right px-4 py-3 font-semibold w-32">Aksi</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100">
-            ${targets.length === 0 ? `<tr><td colspan="5" class="text-center py-8 text-gray-400">Belum ada target untuk tahun ${filterTahun}</td></tr>` :
-              targets.map(t => {
-                const real = DB.filter('realisasis', r => r.targetId === t.id).reduce((s, r) => s + r.nominal, 0);
-                const cap = t.nominal > 0 ? Math.round((real / t.nominal) * 100) : 0;
-                return `
-                  <tr class="hover:bg-blue-50/40 transition">
-                    <td class="px-4 py-3 font-medium text-gray-800">${monthName(t.bulan)}</td>
-                    <td class="px-4 py-3 text-blue-700 font-semibold">${formatRupiah(t.nominal)}</td>
-                    <td class="px-4 py-3 text-emerald-700 font-semibold">${formatRupiah(real)}</td>
-                    <td class="px-4 py-3">
-                      <div class="flex items-center gap-2">
-                        <div class="w-20 bg-gray-200 rounded-full h-2 overflow-hidden">
-                          <div class="bg-gradient-to-r from-blue-700 to-blue-500 h-full rounded-full" style="width:${Math.min(cap, 100)}%"></div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+              <tr>
+                <th class="text-left px-4 py-3 font-semibold">Bulan</th>
+                <th class="text-right px-4 py-3 font-semibold">Target</th>
+                <th class="text-right px-4 py-3 font-semibold">Realisasi</th>
+                <th class="text-left px-4 py-3 font-semibold pl-8">Capaian</th>
+                <th class="text-right px-4 py-3 font-semibold w-32">Aksi</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              ${targets.length === 0 ? `
+                <tr>
+                  <td colspan="5" class="text-center py-10 text-gray-400">
+                    <i data-lucide="inbox" class="w-10 h-10 mx-auto mb-2 opacity-40"></i>
+                    <p class="text-sm">Belum ada target untuk tahun ${filterTahun}</p>
+                    <p class="text-xs mt-1">Klik "Tambah Target" untuk memulai</p>
+                  </td>
+                </tr>` :
+                targets.map(t => {
+                  const real = DB.filter('realisasis', r => r.targetId === t.id).reduce((s, r) => s + r.nominal, 0);
+                  const cap = t.nominal > 0 ? Math.round((real / t.nominal) * 100) : 0;
+                  const capColor = cap >= 100 ? 'from-green-600 to-green-400'
+                                 : cap >= 70 ? 'from-blue-700 to-blue-500'
+                                 : cap >= 40 ? 'from-amber-500 to-amber-400'
+                                 : 'from-red-500 to-red-400';
+                  return `
+                    <tr class="hover:bg-blue-50/40 transition">
+                      <td class="px-4 py-3">
+                        <div class="flex items-center gap-2">
+                          <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center text-xs font-bold">
+                            ${t.bulan}
+                          </div>
+                          <span class="font-medium text-gray-800">${monthName(t.bulan)}</span>
                         </div>
-                        <span class="text-xs font-bold text-blue-700">${cap}%</span>
-                      </div>
-                    </td>
-                    <td class="px-4 py-3 text-right">
-                      <button onclick="openForm(${t.id})" class="text-blue-700 hover:bg-blue-100 px-2 py-1 rounded transition" title="Edit">
-                        <i data-lucide="edit-3" class="w-4 h-4"></i>
-                      </button>
-                      <button onclick="deleteItem(${t.id})" class="text-red-600 hover:bg-red-100 px-2 py-1 rounded transition ml-1" title="Hapus">
-                        <i data-lucide="trash-2" class="w-4 h-4"></i>
-                      </button>
-                    </td>
-                  </tr>`;
-              }).join('')}
-          </tbody>
-        </table>
+                      </td>
+                      <td class="px-4 py-3 text-right text-blue-700 font-semibold whitespace-nowrap">${formatRupiah(t.nominal)}</td>
+                      <td class="px-4 py-3 text-right text-emerald-700 font-semibold whitespace-nowrap">${formatRupiah(real)}</td>
+                      <td class="px-4 py-3 pl-8">
+                        <div class="flex items-center gap-3">
+                          <div class="w-24 bg-gray-200 rounded-full h-2 overflow-hidden">
+                            <div class="bg-gradient-to-r ${capColor} h-full rounded-full transition-all duration-500" style="width:${Math.min(cap, 100)}%"></div>
+                          </div>
+                          <span class="text-xs font-bold text-gray-700 w-10">${cap}%</span>
+                        </div>
+                      </td>
+                      <td class="px-4 py-3 text-right">
+                        <button onclick="openForm(${t.id})"
+                          class="text-blue-700 hover:bg-blue-100 p-2 rounded-lg transition" title="Edit">
+                          <i data-lucide="edit-3" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="deleteItem(${t.id})"
+                          class="text-red-600 hover:bg-red-100 p-2 rounded-lg transition ml-1" title="Hapus">
+                          <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                      </td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+            ${targets.length > 0 ? `
+              <tfoot class="bg-gray-50 border-t-2 border-gray-200">
+                <tr>
+                  <td class="px-4 py-3 font-bold text-gray-700">TOTAL ${filterTahun}</td>
+                  <td class="px-4 py-3 text-right font-bold text-blue-800 whitespace-nowrap">${formatRupiah(total)}</td>
+                  <td class="px-4 py-3 text-right font-bold text-emerald-700 whitespace-nowrap">${formatRupiah(totalRealisasi)}</td>
+                  <td class="px-4 py-3 pl-8 font-bold text-amber-700">${capaianTotal}%</td>
+                  <td></td>
+                </tr>
+              </tfoot>` : ''}
+          </table>
+        </div>
+      </div>
+
+      <!-- Info Box -->
+      <div class="mt-5 bg-blue-50 border-l-4 border-blue-700 p-4 rounded-r-lg text-sm text-blue-900 flex items-start gap-3">
+        <i data-lucide="info" class="w-5 h-5 flex-shrink-0 mt-0.5"></i>
+        <span><b>Capaian</b> dihitung otomatis dari rumus <span class="font-mono text-xs bg-blue-100 px-2 py-0.5 rounded">(Realisasi / Target) × 100%</span>. Setiap perubahan target akan tercatat di <b>audit trail</b>.</span>
       </div>
     `;
 
     renderLayout('target.html', main);
   }
 
-  function changeTahun(y) { filterTahun = Number(y); render(); }
+  // ============ GANTI TAHUN ============
+  function changeTahun(y) {
+    filterTahun = Number(y);
+    render();
+  }
 
+  // ============ FORM OPEN (CREATE/EDIT) ============
   function openForm(id) {
     const t = id ? DB.find('targets', x => x.id === id) : null;
 
     Swal.fire({
       title: t ? 'Edit Target' : 'Tambah Target',
+      width: 500,
       html: `
-        <div class="text-left space-y-3 text-sm">
+        <div class="text-left space-y-4 text-sm mt-2">
           <div>
-            <label class="block font-medium text-gray-700 mb-1">Tahun</label>
-            <input id="f-tahun" type="number" class="w-full px-3 py-2 border border-gray-200 rounded-lg" value="${t ? t.tahun : filterTahun}" />
+            <label class="block font-semibold text-gray-700 mb-1.5 text-xs uppercase tracking-wide">Tahun</label>
+            <input id="f-tahun" type="number" min="2020" max="2099"
+              class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              value="${t ? t.tahun : filterTahun}" />
           </div>
+
           <div>
-            <label class="block font-medium text-gray-700 mb-1">Bulan</label>
-            <select id="f-bulan" class="w-full px-3 py-2 border border-gray-200 rounded-lg">
-              ${Array.from({length:12},(_,i)=>i+1).map(m => `<option value="${m}" ${t?.bulan === m ? 'selected' : ''}>${monthName(m)}</option>`).join('')}
+            <label class="block font-semibold text-gray-700 mb-1.5 text-xs uppercase tracking-wide">Bulan</label>
+            <select id="f-bulan"
+              class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white">
+              ${Array.from({length:12},(_,i)=>i+1).map(m =>
+                `<option value="${m}" ${t?.bulan === m ? 'selected' : ''}>${monthName(m)}</option>`
+              ).join('')}
             </select>
           </div>
+
           <div>
-            <label class="block font-medium text-gray-700 mb-1">Nominal Target (Rp)</label>
-            <input id="f-nominal" type="number" class="w-full px-3 py-2 border border-gray-200 rounded-lg" value="${t ? t.nominal : 0}" />
+            <label class="block font-semibold text-gray-700 mb-1.5 text-xs uppercase tracking-wide">Nominal Target</label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-semibold pointer-events-none select-none">Rp</span>
+              <input id="f-nominal" type="text" inputmode="numeric" autocomplete="off"
+                class="input-nominal w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-lg text-sm text-right font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value="${t ? formatNumberInput(t.nominal) : ''}"
+                placeholder="0" />
+            </div>
+            <div class="mt-2 flex items-center justify-between">
+              <p class="text-[11px] text-gray-400">
+                <i data-lucide="info" class="w-3 h-3 inline"></i>
+                Ketik angka saja, otomatis diformat
+              </p>
+              <p class="text-sm font-bold text-blue-700 font-mono" id="f-nominal-preview">Rp 0</p>
+            </div>
+          </div>
+
+          <!-- Quick amount buttons -->
+          <div class="pt-2">
+            <p class="text-[10px] text-gray-400 uppercase font-semibold mb-2 tracking-wide">Nilai cepat</p>
+            <div class="flex flex-wrap gap-1.5">
+              ${[100000000, 250000000, 500000000, 750000000, 1000000000].map(v => `
+                <button type="button" onclick="setNominal(${v})"
+                  class="text-[11px] bg-gray-100 hover:bg-blue-100 hover:text-blue-700 text-gray-600 font-semibold px-2.5 py-1.5 rounded-md transition">
+                  ${v >= 1000000000 ? (v/1000000000) + ' M' : (v/1000000) + ' Jt'}
+                </button>
+              `).join('')}
+            </div>
           </div>
         </div>
       `,
       showCancelButton: true,
-      confirmButtonText: 'Simpan',
+      confirmButtonText: t ? 'Update' : 'Simpan',
       cancelButtonText: 'Batal',
       customClass: {
-        confirmButton: 'bg-blue-700 hover:bg-blue-800 text-white font-medium px-5 py-2.5 rounded-lg mx-1',
-        cancelButton: 'bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2.5 rounded-lg mx-1'
+        confirmButton: 'bg-blue-700 hover:bg-blue-800 text-white font-medium px-5 py-2.5 rounded-lg mx-1 transition',
+        cancelButton: 'bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2.5 rounded-lg mx-1 transition',
+        popup: 'rounded-2xl'
       },
       buttonsStyling: false,
+      didOpen: () => {
+        // Re-init Lucide untuk icon di dalam SweetAlert
+        if (window.lucide) lucide.createIcons();
+
+        const nominalEl = document.getElementById('f-nominal');
+        const previewEl = document.getElementById('f-nominal-preview');
+
+        // Attach auto-format
+        attachNumberFormat(nominalEl);
+
+        // Preview live
+        function updatePreview() {
+          const val = parseNumberInput(nominalEl.value);
+          previewEl.textContent = 'Rp ' + val.toLocaleString('id-ID');
+        }
+
+        nominalEl.addEventListener('input', updatePreview);
+
+        // Set initial preview
+        updatePreview();
+
+        // Focus ke input
+        setTimeout(() => nominalEl.focus(), 100);
+      },
       preConfirm: () => {
         const tahun = Number(document.getElementById('f-tahun').value);
         const bulan = Number(document.getElementById('f-bulan').value);
-        const nominal = Number(document.getElementById('f-nominal').value);
-        if (!tahun || !bulan || nominal <= 0) {
-          Swal.showValidationMessage('Semua field wajib diisi dengan benar');
+        const nominal = parseNumberInput(document.getElementById('f-nominal').value);
+
+        if (!tahun || tahun < 2020 || tahun > 2099) {
+          Swal.showValidationMessage('Tahun harus antara 2020 - 2099');
+          return false;
+        }
+        if (!bulan || bulan < 1 || bulan > 12) {
+          Swal.showValidationMessage('Bulan tidak valid');
+          return false;
+        }
+        if (nominal <= 0) {
+          Swal.showValidationMessage('Nominal target harus lebih dari 0');
           return false;
         }
         return { tahun, bulan, nominal };
@@ -149,48 +350,90 @@
       const unit = AUTH.currentUser().unit || 'Bagian Keuangan';
 
       if (t) {
+        // === UPDATE ===
         const idx = db.targets.findIndex(x => x.id === id);
         const before = formatRupiah(db.targets[idx].nominal);
         db.targets[idx] = { ...db.targets[idx], ...data };
         DB.save(db);
-        recordAudit({ action: 'UPDATE', module: 'Target', recordId: `TGT-${String(id).padStart(5, '0')}`, before, after: formatRupiah(data.nominal) });
+        recordAudit({
+          action: 'UPDATE',
+          module: 'Target',
+          recordId: `TGT-${String(id).padStart(5, '0')}`,
+          before,
+          after: formatRupiah(data.nominal)
+        });
         toastSuccess('Target berhasil diupdate');
       } else {
-        // Cek duplikat bulan
+        // === CREATE ===
+        // Cek duplikat bulan di tahun yang sama
         if (db.targets.some(x => x.tahun === data.tahun && x.bulan === data.bulan)) {
-          toastError('Target untuk bulan ini sudah ada');
+          toastError(`Target untuk ${monthName(data.bulan)} ${data.tahun} sudah ada`);
           return;
         }
         const newId = db.meta.nextTargetId || (Math.max(0, ...db.targets.map(x => x.id)) + 1);
         db.meta.nextTargetId = newId + 1;
         db.targets.push({ id: newId, ...data, unit });
         DB.save(db);
-        recordAudit({ action: 'CREATE', module: 'Target', recordId: `TGT-${String(newId).padStart(5, '0')}`, after: formatRupiah(data.nominal) });
+        recordAudit({
+          action: 'CREATE',
+          module: 'Target',
+          recordId: `TGT-${String(newId).padStart(5, '0')}`,
+          after: formatRupiah(data.nominal)
+        });
         toastSuccess('Target berhasil ditambahkan');
       }
       render();
     });
   }
 
+  // ============ SET NOMINAL CEPAT ============
+  function setNominal(value) {
+    const el = document.getElementById('f-nominal');
+    if (!el) return;
+    el.value = formatNumberInput(value);
+    el.dispatchEvent(new Event('input'));
+    el.focus();
+  }
+
+  // ============ DELETE ============
   function deleteItem(id) {
     const t = DB.find('targets', x => x.id === id);
     const realCount = DB.filter('realisasis', r => r.targetId === id).length;
-    confirmAction(
-      'Hapus target ini?',
-      `Target ${monthName(t.bulan)} ${t.tahun} (${formatRupiah(t.nominal)}) akan dihapus.${realCount ? ` Ada ${realCount} realisasi terkait.` : ''}`,
-      () => {
-        const db = DB.load();
-        db.targets = db.targets.filter(x => x.id !== id);
-        db.realisasis = db.realisasis.filter(r => r.targetId !== id);
-        DB.save(db);
-        recordAudit({ action: 'DELETE', module: 'Target', recordId: `TGT-${String(id).padStart(5, '0')}`, before: formatRupiah(t.nominal), after: '-' });
-        toastSuccess('Target berhasil dihapus');
-        render();
-      },
-      { icon: 'warning', confirmText: 'Ya, Hapus' }
-    );
+
+    let htmlMsg = `Target <b>${monthName(t.bulan)} ${t.tahun}</b> (${formatRupiah(t.nominal)}) akan dihapus permanen.`;
+    if (realCount > 0) {
+      htmlMsg += `<br><br><span class="text-red-600 font-semibold">⚠ Perhatian:</span> Terdapat <b>${realCount} realisasi</b> terkait yang juga akan dihapus.`;
+    }
+
+    swalTheme.fire({
+      title: 'Hapus Target?',
+      html: `<div class="text-sm text-gray-600">${htmlMsg}</div>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Ya, Hapus',
+      cancelButtonText: 'Batal'
+    }).then(r => {
+      if (!r.isConfirmed) return;
+
+      const db = DB.load();
+      db.targets = db.targets.filter(x => x.id !== id);
+      db.realisasis = db.realisasis.filter(r => r.targetId !== id);
+      DB.save(db);
+
+      recordAudit({
+        action: 'DELETE',
+        module: 'Target',
+        recordId: `TGT-${String(id).padStart(5, '0')}`,
+        before: formatRupiah(t.nominal),
+        after: '-'
+      });
+
+      toastSuccess('Target berhasil dihapus');
+      render();
+    });
   }
 
+  // ============ INIT ============
   render();
 </script>
 </body>
