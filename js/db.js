@@ -42,23 +42,129 @@ const SEED = {
       { id: 2, nama: 'Teknis' },
       { id: 3, nama: 'Anggaran' },
       { id: 4, nama: 'SDM' }
+    ],
+
+    kategoriTarget: [
+      { id: 1, nama: 'Gaji', kode: 'GAJI' },
+      { id: 2, nama: 'Honor', kode: 'HONOR' },
+      { id: 3, nama: 'Tunjangan Kinerja', kode: 'TUKIN' },
+      { id: 4, nama: 'Pengadaan ATK', kode: 'ATK' },
+      { id: 5, nama: 'Perjalanan Dinas', kode: 'PD' },
+      { id: 6, nama: 'Pemeliharaan', kode: 'PML' },
+      { id: 7, nama: 'Lain-lain', kode: 'LAIN' }
     ]
   },
 
   targets: [
-    { id: 1, tahun: 2026, bulan: 1, nominal: 800000000, unit: 'Bagian Keuangan' },
-    { id: 2, tahun: 2026, bulan: 2, nominal: 800000000, unit: 'Bagian Keuangan' },
-    { id: 3, tahun: 2026, bulan: 3, nominal: 800000000, unit: 'Bagian Keuangan' },
-    { id: 4, tahun: 2026, bulan: 4, nominal: 850000000, unit: 'Bagian Keuangan' },
-    { id: 5, tahun: 2026, bulan: 5, nominal: 850000000, unit: 'Bagian Keuangan' },
-    { id: 6, tahun: 2026, bulan: 6, nominal: 850000000, unit: 'Bagian Keuangan' },
-    { id: 7, tahun: 2026, bulan: 7, nominal: 850000000, unit: 'Bagian Keuangan' },
-    { id: 8, tahun: 2026, bulan: 8, nominal: 850000000, unit: 'Bagian Keuangan' },
-    { id: 9, tahun: 2026, bulan: 9, nominal: 500000000, unit: 'Bagian Keuangan' },
-    { id: 10, tahun: 2026, bulan: 10, nominal: 850000000, unit: 'Bagian Keuangan' },
-    { id: 11, tahun: 2026, bulan: 11, nominal: 800000000, unit: 'Bagian Keuangan' },
-    { id: 12, tahun: 2026, bulan: 12, nominal: 850000000, unit: 'Bagian Keuangan' },
-    { id: 13, tahun: 2025, bulan: 12, nominal: 900000000, unit: 'Bagian Keuangan' }
+    // Setiap target bulanan punya "details" array
+    {
+      id: 1, tahun: 2026, bulan: 1, unit: 'Bagian Keuangan',
+      details: [
+        { kategoriId: 1, nominal: 500000000 },  // Gaji
+        { kategoriId: 2, nominal: 100000000 },  // Honor
+        { kategoriId: 3, nominal: 150000000 },  // Tukin
+        { kategoriId: 4, nominal: 100000000 }   // ATK
+      ]
+    },
+    {
+      id: 2, tahun: 2026, bulan: 2, unit: 'Bagian Keuangan',
+      details: [
+        { kategoriId: 1, nominal: 500000000 },
+        { kategoriId: 2, nominal: 100000000 },
+        { kategoriId: 3, nominal: 150000000 },
+        { kategoriId: 4, nominal: 50000000 }
+      ]
+    },
+    {
+      id: 3, tahun: 2026, bulan: 3, unit: 'Bagian Keuangan',
+      details: [
+        { kategoriId: 1, nominal: 500000000 },
+        { kategoriId: 2, nominal: 100000000 },
+        { kategoriId: 3, nominal: 150000000 },
+        { kategoriId: 4, nominal: 80000000 }
+      ]
+    },
+    {
+      id: 4, tahun: 2026, bulan: 4, unit: 'Bagian Keuangan',
+      details: [
+        { kategoriId: 1, nominal: 500000000 },
+        { kategoriId: 2, nominal: 120000000 },
+        { kategoriId: 3, nominal: 150000000 },
+        { kategoriId: 4, nominal: 80000000 }
+      ]
+    },
+    {
+      id: 5, tahun: 2026, bulan: 5, unit: 'Bagian Keuangan',
+      details: [
+        { kategoriId: 1, nominal: 500000000 },
+        { kategoriId: 2, nominal: 100000000 },
+        { kategoriId: 3, nominal: 150000000 },
+        { kategoriId: 4, nominal: 30000000 }
+      ]
+    },
+    {
+      id: 6, tahun: 2026, bulan: 6, unit: 'Bagian Keuangan',
+      details: [
+        { kategoriId: 1, nominal: 500000000 },
+        { kategoriId: 2, nominal: 100000000 },
+        { kategoriId: 3, nominal: 150000000 },
+        { kategoriId: 4, nominal: 100000000 }
+      ]
+    },
+    {
+      id: 7, tahun: 2026, bulan: 7, unit: 'Bagian Keuangan',
+      details: [
+        { kategoriId: 1, nominal: 500000000 },
+        { kategoriId: 2, nominal: 100000000 },
+        { kategoriId: 3, nominal: 150000000 },
+        { kategoriId: 4, nominal: 100000000 }
+      ]
+    },
+    {
+      id: 8, tahun: 2026, bulan: 8, unit: 'Bagian Keuangan',
+      details: [
+        { kategoriId: 1, nominal: 500000000 },
+        { kategoriId: 2, nominal: 100000000 },
+        { kategoriId: 3, nominal: 150000000 },
+        { kategoriId: 4, nominal: 100000000 }
+      ]
+    },
+    {
+      id: 9, tahun: 2026, bulan: 9, unit: 'Bagian Keuangan',
+      details: [
+        { kategoriId: 1, nominal: 500000000 },
+        { kategoriId: 2, nominal: 100000000 },
+        { kategoriId: 3, nominal: 150000000 },
+        { kategoriId: 4, nominal: 100000000 }
+      ]
+    },
+    {
+      id: 10, tahun: 2026, bulan: 10, unit: 'Bagian Keuangan',
+      details: [
+        { kategoriId: 1, nominal: 500000000 },
+        { kategoriId: 2, nominal: 100000000 },
+        { kategoriId: 3, nominal: 150000000 },
+        { kategoriId: 4, nominal: 100000000 }
+      ]
+    },
+    {
+      id: 11, tahun: 2026, bulan: 11, unit: 'Bagian Keuangan',
+      details: [
+        { kategoriId: 1, nominal: 500000000 },
+        { kategoriId: 2, nominal: 100000000 },
+        { kategoriId: 3, nominal: 150000000 },
+        { kategoriId: 4, nominal: 50000000 }
+      ]
+    },
+    {
+      id: 12, tahun: 2026, bulan: 12, unit: 'Bagian Keuangan',
+      details: [
+        { kategoriId: 1, nominal: 500000000 },
+        { kategoriId: 2, nominal: 200000000 },
+        { kategoriId: 3, nominal: 150000000 },
+        { kategoriId: 4, nominal: 50000000 }
+      ]
+    }
   ],
 
   realisasis: [
@@ -252,4 +358,38 @@ function monthName(m) {
 
 function monthShort(m) {
   return ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'][m-1] || '-';
+}
+
+// ============ TARGET HELPERS ============
+
+/**
+ * Hitung total target bulanan = SUM dari semua detail
+ */
+function getTotalTargetBulanan(target) {
+  if (!target || !target.details) return 0;
+  return target.details.reduce((sum, d) => sum + (d.nominal || 0), 0);
+}
+
+/**
+ * Hitung total target tahunan = SUM dari semua target bulanan
+ */
+function getTotalTargetTahunan(tahun) {
+  const targets = DB.filter('targets', t => t.tahun === tahun);
+  return targets.reduce((sum, t) => sum + getTotalTargetBulanan(t), 0);
+}
+
+/**
+ * Hitung realisasi per bulan = SUM realisasi terkait target bulan tsb
+ */
+function getTotalRealisasiBulanan(targetId) {
+  const realisasis = DB.filter('realisasis', r => r.targetId === targetId);
+  return realisasis.reduce((sum, r) => sum + (r.nominal || 0), 0);
+}
+
+/**
+ * Hitung total realisasi tahunan
+ */
+function getTotalRealisasiTahunan(tahun) {
+  const targets = DB.filter('targets', t => t.tahun === tahun);
+  return targets.reduce((sum, t) => sum + getTotalRealisasiBulanan(t.id), 0);
 }

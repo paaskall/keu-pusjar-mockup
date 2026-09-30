@@ -10,10 +10,17 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   body { font-family: 'Inter', sans-serif; }
-  /* Khusus input nominal */
   .input-nominal {
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.02em;
+  }
+  /* Detail item animation */
+  .detail-item {
+    animation: slideIn 0.2s ease-out;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 </style>
 </head>
@@ -28,7 +35,6 @@
   let filterTahun = 2026;
 
   // ============ FORMAT NOMINAL HELPERS ============
-  // (Kalau sudah ada di js/app.js, hapus bagian ini agar tidak duplikat)
   if (typeof formatNumberInput !== 'function') {
     window.formatNumberInput = function(value) {
       if (value === null || value === undefined || value === '') return '';
@@ -37,7 +43,6 @@
       return Number(numeric).toLocaleString('id-ID');
     };
   }
-
   if (typeof parseNumberInput !== 'function') {
     window.parseNumberInput = function(value) {
       if (value === null || value === undefined || value === '') return 0;
@@ -45,37 +50,26 @@
       return numeric === '' ? 0 : Number(numeric);
     };
   }
-
   if (typeof attachNumberFormat !== 'function') {
     window.attachNumberFormat = function(input) {
       if (!input) return;
-
-      // Set initial value
       if (input.value && !input.value.includes('.')) {
         input.value = formatNumberInput(input.value);
       }
-
-      // Format saat mengetik
       input.addEventListener('input', (e) => {
         const cursorPos = e.target.selectionStart;
         const oldLength = e.target.value.length;
-
         e.target.value = formatNumberInput(e.target.value);
-
         const newLength = e.target.value.length;
         const newPos = cursorPos + (newLength - oldLength);
         try { e.target.setSelectionRange(newPos, newPos); } catch(_) {}
       });
-
-      // Cegah karakter non-numerik
       input.addEventListener('keypress', (e) => {
         if (!/[0-9]/.test(e.key) &&
             !['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
           e.preventDefault();
         }
       });
-
-      // Paste handler
       input.addEventListener('paste', (e) => {
         e.preventDefault();
         const pasted = (e.clipboardData || window.clipboardData).getData('text');
@@ -88,43 +82,57 @@
   // ============ RENDER UTAMA ============
   function render() {
     const targets = DB.filter('targets', t => t.tahun === filterTahun).sort((a,b) => a.bulan - b.bulan);
-    const total = targets.reduce((s, t) => s + t.nominal, 0);
-    const totalRealisasi = targets.reduce((s, t) => {
-      return s + DB.filter('realisasis', r => r.targetId === t.id).reduce((a, r) => a + r.nominal, 0);
-    }, 0);
-    const capaianTotal = total > 0 ? Math.round((totalRealisasi / total) * 100) : 0;
+    const totalTargetTahunan = targets.reduce((s, t) => s + getTotalTargetBulanan(t), 0);
+    const totalRealisasiTahunan = targets.reduce((s, t) => s + getTotalRealisasiBulanan(t.id), 0);
+    const capaianTahunan = totalTargetTahunan > 0 ? Math.round((totalRealisasiTahunan / totalTargetTahunan) * 100) : 0;
+    const db = DB.load();
 
     const main = `
       <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 class="text-2xl font-bold text-gray-800">Kelola Target</h2>
-          <p class="text-sm text-gray-500 mt-1">Tetapkan target keuangan per periode bulanan</p>
+          <p class="text-sm text-gray-500 mt-1">Target bulanan disusun dari detail komponen di dalamnya</p>
         </div>
         <button onclick="openForm()" class="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-md shadow-blue-200 flex items-center gap-2 transition">
-          <i data-lucide="plus" class="w-4 h-4"></i> Tambah Target
+          <i data-lucide="plus" class="w-4 h-4"></i> Tambah Target Bulanan
         </button>
       </div>
 
       <!-- Stat Cards -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6">
         ${statCard({
-          label: 'Total Target ' + filterTahun,
-          value: formatRupiah(total),
+          label: 'Target Tahunan ' + filterTahun,
+          value: formatRupiah(totalTargetTahunan),
           icon: 'target',
           color: 'blue'
         })}
         ${statCard({
-          label: 'Total Realisasi',
-          value: formatRupiah(totalRealisasi),
+          label: 'Realisasi Tahunan',
+          value: formatRupiah(totalRealisasiTahunan),
           icon: 'trending-up',
           color: 'emerald'
         })}
         ${statCard({
-          label: 'Capaian Keseluruhan',
-          value: capaianTotal + '%',
+          label: 'Capaian Tahunan',
+          value: capaianTahunan + '%',
           icon: 'percent',
           color: 'amber'
         })}
+      </div>
+
+      <!-- Info Konsep -->
+      <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-4 mb-5 flex items-start gap-3">
+        <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0">
+          <i data-lucide="lightbulb" class="w-5 h-5"></i>
+        </div>
+        <div class="text-sm text-gray-700">
+          <p class="font-semibold text-blue-900 mb-1">Bagaimana target dihitung?</p>
+          <p class="text-xs leading-relaxed">
+            <b>Target Bulanan</b> = jumlah dari komponen di dalamnya (Gaji, Honor, Tukin, dll).
+            <b>Target Tahunan</b> = total dari semua target bulanan. Klik ikon <i data-lucide="eye" class="w-3 h-3 inline"></i>
+            untuk melihat rincian komponen per bulan.
+          </p>
+        </div>
       </div>
 
       <!-- Filter Tahun -->
@@ -137,7 +145,7 @@
           </select>
         </div>
         <div class="text-xs text-gray-500 ml-auto self-center">
-          ${targets.length} bulan terdaftar · Rata-rata: <b class="text-blue-700">${formatRupiah(targets.length ? Math.round(total / targets.length) : 0)}</b>
+          ${targets.length} bulan terdaftar · Rata-rata: <b class="text-blue-700">${formatRupiah(targets.length ? Math.round(totalTargetTahunan / targets.length) : 0)}</b>
         </div>
       </div>
 
@@ -148,28 +156,32 @@
             <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
               <tr>
                 <th class="text-left px-4 py-3 font-semibold">Bulan</th>
+                <th class="text-left px-4 py-3 font-semibold">Komponen</th>
                 <th class="text-right px-4 py-3 font-semibold">Target</th>
                 <th class="text-right px-4 py-3 font-semibold">Realisasi</th>
-                <th class="text-left px-4 py-3 font-semibold pl-8">Capaian</th>
+                <th class="text-left px-4 py-3 font-semibold pl-6">Capaian</th>
                 <th class="text-right px-4 py-3 font-semibold w-32">Aksi</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
               ${targets.length === 0 ? `
                 <tr>
-                  <td colspan="5" class="text-center py-10 text-gray-400">
+                  <td colspan="6" class="text-center py-10 text-gray-400">
                     <i data-lucide="inbox" class="w-10 h-10 mx-auto mb-2 opacity-40"></i>
                     <p class="text-sm">Belum ada target untuk tahun ${filterTahun}</p>
-                    <p class="text-xs mt-1">Klik "Tambah Target" untuk memulai</p>
+                    <p class="text-xs mt-1">Klik "Tambah Target Bulanan" untuk memulai</p>
                   </td>
                 </tr>` :
                 targets.map(t => {
-                  const real = DB.filter('realisasis', r => r.targetId === t.id).reduce((s, r) => s + r.nominal, 0);
-                  const cap = t.nominal > 0 ? Math.round((real / t.nominal) * 100) : 0;
+                  const totalBulan = getTotalTargetBulanan(t);
+                  const real = getTotalRealisasiBulanan(t.id);
+                  const cap = totalBulan > 0 ? Math.round((real / totalBulan) * 100) : 0;
                   const capColor = cap >= 100 ? 'from-green-600 to-green-400'
                                  : cap >= 70 ? 'from-blue-700 to-blue-500'
                                  : cap >= 40 ? 'from-amber-500 to-amber-400'
                                  : 'from-red-500 to-red-400';
+                  const detailCount = (t.details || []).length;
+
                   return `
                     <tr class="hover:bg-blue-50/40 transition">
                       <td class="px-4 py-3">
@@ -180,19 +192,30 @@
                           <span class="font-medium text-gray-800">${monthName(t.bulan)}</span>
                         </div>
                       </td>
-                      <td class="px-4 py-3 text-right text-blue-700 font-semibold whitespace-nowrap">${formatRupiah(t.nominal)}</td>
+                      <td class="px-4 py-3">
+                        <button onclick="showDetail(${t.id})"
+                          class="inline-flex items-center gap-1.5 text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold px-2.5 py-1.5 rounded-full transition">
+                          <i data-lucide="layers" class="w-3 h-3"></i>
+                          ${detailCount} komponen
+                        </button>
+                      </td>
+                      <td class="px-4 py-3 text-right text-blue-700 font-semibold whitespace-nowrap">${formatRupiah(totalBulan)}</td>
                       <td class="px-4 py-3 text-right text-emerald-700 font-semibold whitespace-nowrap">${formatRupiah(real)}</td>
-                      <td class="px-4 py-3 pl-8">
+                      <td class="px-4 py-3 pl-6">
                         <div class="flex items-center gap-3">
-                          <div class="w-24 bg-gray-200 rounded-full h-2 overflow-hidden">
+                          <div class="w-20 bg-gray-200 rounded-full h-2 overflow-hidden">
                             <div class="bg-gradient-to-r ${capColor} h-full rounded-full transition-all duration-500" style="width:${Math.min(cap, 100)}%"></div>
                           </div>
                           <span class="text-xs font-bold text-gray-700 w-10">${cap}%</span>
                         </div>
                       </td>
                       <td class="px-4 py-3 text-right">
+                        <button onclick="showDetail(${t.id})"
+                          class="text-purple-600 hover:bg-purple-100 p-2 rounded-lg transition" title="Lihat Detail">
+                          <i data-lucide="eye" class="w-4 h-4"></i>
+                        </button>
                         <button onclick="openForm(${t.id})"
-                          class="text-blue-700 hover:bg-blue-100 p-2 rounded-lg transition" title="Edit">
+                          class="text-blue-700 hover:bg-blue-100 p-2 rounded-lg transition ml-1" title="Edit">
                           <i data-lucide="edit-3" class="w-4 h-4"></i>
                         </button>
                         <button onclick="deleteItem(${t.id})"
@@ -206,21 +229,15 @@
             ${targets.length > 0 ? `
               <tfoot class="bg-gray-50 border-t-2 border-gray-200">
                 <tr>
-                  <td class="px-4 py-3 font-bold text-gray-700">TOTAL ${filterTahun}</td>
-                  <td class="px-4 py-3 text-right font-bold text-blue-800 whitespace-nowrap">${formatRupiah(total)}</td>
-                  <td class="px-4 py-3 text-right font-bold text-emerald-700 whitespace-nowrap">${formatRupiah(totalRealisasi)}</td>
-                  <td class="px-4 py-3 pl-8 font-bold text-amber-700">${capaianTotal}%</td>
+                  <td colspan="2" class="px-4 py-3 font-bold text-gray-700">TOTAL TAHUNAN ${filterTahun}</td>
+                  <td class="px-4 py-3 text-right font-bold text-blue-800 whitespace-nowrap">${formatRupiah(totalTargetTahunan)}</td>
+                  <td class="px-4 py-3 text-right font-bold text-emerald-700 whitespace-nowrap">${formatRupiah(totalRealisasiTahunan)}</td>
+                  <td class="px-4 py-3 pl-6 font-bold text-amber-700">${capaianTahunan}%</td>
                   <td></td>
                 </tr>
               </tfoot>` : ''}
           </table>
         </div>
-      </div>
-
-      <!-- Info Box -->
-      <div class="mt-5 bg-blue-50 border-l-4 border-blue-700 p-4 rounded-r-lg text-sm text-blue-900 flex items-start gap-3">
-        <i data-lucide="info" class="w-5 h-5 flex-shrink-0 mt-0.5"></i>
-        <span><b>Capaian</b> dihitung otomatis dari rumus <span class="font-mono text-xs bg-blue-100 px-2 py-0.5 rounded">(Realisasi / Target) × 100%</span>. Setiap perubahan target akan tercatat di <b>audit trail</b>.</span>
       </div>
     `;
 
@@ -233,60 +250,147 @@
     render();
   }
 
+  // ============ SHOW DETAIL (View Komponen) ============
+  function showDetail(id) {
+    const t = DB.find('targets', x => x.id === id);
+    if (!t) return;
+    const db = DB.load();
+    const kategoriList = db.master.kategoriTarget || [];
+    const totalBulan = getTotalTargetBulanan(t);
+    const realBulan = getTotalRealisasiBulanan(t.id);
+
+    const rows = (t.details || []).map(d => {
+      const kat = kategoriList.find(k => k.id === d.kategoriId);
+      const pct = totalBulan > 0 ? ((d.nominal / totalBulan) * 100).toFixed(1) : 0;
+      return `
+        <tr class="border-b border-gray-100">
+          <td class="py-2.5 text-left">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-md bg-blue-50 text-blue-700 flex items-center justify-center text-[10px] font-bold">
+                ${kat ? kat.kode.substring(0, 3) : '???'}
+              </div>
+              <span class="text-sm font-medium text-gray-800">${kat ? kat.nama : 'Tidak diketahui'}</span>
+            </div>
+          </td>
+          <td class="py-2.5 text-right font-mono text-sm font-semibold text-blue-700">${formatRupiah(d.nominal)}</td>
+          <td class="py-2.5 text-right text-xs text-gray-500 w-16">${pct}%</td>
+        </tr>`;
+    }).join('');
+
+    swalTheme.fire({
+      title: `Detail Target — ${monthName(t.bulan)} ${t.tahun}`,
+      width: 600,
+      html: `
+        <div class="text-left">
+          <div class="grid grid-cols-2 gap-3 mb-5">
+            <div class="bg-blue-50 rounded-lg p-3">
+              <p class="text-[10px] uppercase font-semibold text-blue-700 tracking-wider mb-1">Target Bulanan</p>
+              <p class="text-lg font-bold text-blue-900">${formatRupiah(totalBulan)}</p>
+            </div>
+            <div class="bg-emerald-50 rounded-lg p-3">
+              <p class="text-[10px] uppercase font-semibold text-emerald-700 tracking-wider mb-1">Realisasi</p>
+              <p class="text-lg font-bold text-emerald-900">${formatRupiah(realBulan)}</p>
+            </div>
+          </div>
+
+          <div class="border border-gray-100 rounded-lg overflow-hidden">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="text-left px-3 py-2 text-[11px] uppercase text-gray-500 font-semibold">Komponen</th>
+                  <th class="text-right px-3 py-2 text-[11px] uppercase text-gray-500 font-semibold">Nominal</th>
+                  <th class="text-right px-3 py-2 text-[11px] uppercase text-gray-500 font-semibold">Porsi</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows || '<tr><td colspan="3" class="text-center py-4 text-gray-400 text-xs">Tidak ada komponen</td></tr>'}
+              </tbody>
+              <tfoot class="bg-gray-50 border-t border-gray-200">
+                <tr>
+                  <td class="px-3 py-2 font-bold text-gray-700 text-sm">TOTAL</td>
+                  <td class="px-3 py-2 text-right font-bold text-blue-800 font-mono text-sm">${formatRupiah(totalBulan)}</td>
+                  <td class="px-3 py-2 text-right text-xs text-gray-500">100%</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <p class="text-[11px] text-gray-400 mt-3 text-center">
+            <i data-lucide="info" class="w-3 h-3 inline"></i>
+            Target bulanan = jumlah dari semua komponen di atas
+          </p>
+        </div>
+      `,
+      confirmButtonText: 'Tutup',
+      showCancelButton: true,
+      cancelButtonText: 'Edit Komponen',
+      customClass: {
+        confirmButton: 'bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2.5 rounded-lg mx-1 transition',
+        cancelButton: 'bg-blue-700 hover:bg-blue-800 text-white font-medium px-5 py-2.5 rounded-lg mx-1 transition'
+      },
+      buttonsStyling: false,
+      didOpen: () => { if (window.lucide) lucide.createIcons(); }
+    }).then(r => {
+      if (r.dismiss === Swal.DismissReason.cancel) {
+        openForm(id);
+      }
+    });
+  }
+
   // ============ FORM OPEN (CREATE/EDIT) ============
   function openForm(id) {
     const t = id ? DB.find('targets', x => x.id === id) : null;
+    const db = DB.load();
+    const kategoriList = db.master.kategoriTarget || [];
+
+    // Bangun initial details rows
+    const initialDetails = t && t.details && t.details.length > 0
+      ? t.details
+      : [{ kategoriId: kategoriList[0]?.id || 1, nominal: 0 }];
 
     Swal.fire({
-      title: t ? 'Edit Target' : 'Tambah Target',
-      width: 500,
+      title: t ? 'Edit Target Bulanan' : 'Tambah Target Bulanan',
+      width: 720,
       html: `
         <div class="text-left space-y-4 text-sm mt-2">
-          <div>
-            <label class="block font-semibold text-gray-700 mb-1.5 text-xs uppercase tracking-wide">Tahun</label>
-            <input id="f-tahun" type="number" min="2020" max="2099"
-              class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              value="${t ? t.tahun : filterTahun}" />
-          </div>
-
-          <div>
-            <label class="block font-semibold text-gray-700 mb-1.5 text-xs uppercase tracking-wide">Bulan</label>
-            <select id="f-bulan"
-              class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white">
-              ${Array.from({length:12},(_,i)=>i+1).map(m =>
-                `<option value="${m}" ${t?.bulan === m ? 'selected' : ''}>${monthName(m)}</option>`
-              ).join('')}
-            </select>
-          </div>
-
-          <div>
-            <label class="block font-semibold text-gray-700 mb-1.5 text-xs uppercase tracking-wide">Nominal Target</label>
-            <div class="relative">
-              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-semibold pointer-events-none select-none">Rp</span>
-              <input id="f-nominal" type="text" inputmode="numeric" autocomplete="off"
-                class="input-nominal w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-lg text-sm text-right font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                value="${t ? formatNumberInput(t.nominal) : ''}"
-                placeholder="0" />
+          <!-- Tahun & Bulan -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block font-semibold text-gray-700 mb-1.5 text-xs uppercase tracking-wide">Tahun</label>
+              <input id="f-tahun" type="number" min="2020" max="2099"
+                class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value="${t ? t.tahun : filterTahun}" />
             </div>
-            <div class="mt-2 flex items-center justify-between">
-              <p class="text-[11px] text-gray-400">
-                <i data-lucide="info" class="w-3 h-3 inline"></i>
-                Ketik angka saja, otomatis diformat
-              </p>
-              <p class="text-sm font-bold text-blue-700 font-mono" id="f-nominal-preview">Rp 0</p>
+            <div>
+              <label class="block font-semibold text-gray-700 mb-1.5 text-xs uppercase tracking-wide">Bulan</label>
+              <select id="f-bulan"
+                class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white">
+                ${Array.from({length:12},(_,i)=>i+1).map(m =>
+                  `<option value="${m}" ${t?.bulan === m ? 'selected' : ''}>${monthName(m)}</option>`
+                ).join('')}
+              </select>
             </div>
           </div>
 
-          <!-- Quick amount buttons -->
-          <div class="pt-2">
-            <p class="text-[10px] text-gray-400 uppercase font-semibold mb-2 tracking-wide">Nilai cepat</p>
-            <div class="flex flex-wrap gap-1.5">
-              ${[100000000, 250000000, 500000000, 750000000, 1000000000].map(v => `
-                <button type="button" onclick="setNominal(${v})"
-                  class="text-[11px] bg-gray-100 hover:bg-blue-100 hover:text-blue-700 text-gray-600 font-semibold px-2.5 py-1.5 rounded-md transition">
-                  ${v >= 1000000000 ? (v/1000000000) + ' M' : (v/1000000) + ' Jt'}
-                </button>
-              `).join('')}
+          <!-- Detail Komponen -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="block font-semibold text-gray-700 text-xs uppercase tracking-wide">Komponen Target</label>
+              <button type="button" onclick="addDetailRow()"
+                class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold px-2.5 py-1 rounded-md transition flex items-center gap-1">
+                <i data-lucide="plus" class="w-3 h-3"></i> Tambah Komponen
+              </button>
+            </div>
+
+            <div id="detail-container" class="space-y-2 max-h-64 overflow-y-auto pr-1">
+              ${initialDetails.map((d, idx) => renderDetailRow(d, idx, kategoriList)).join('')}
+            </div>
+
+            <div class="mt-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-lg p-3 flex items-center justify-between">
+              <span class="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                <i data-lucide="sigma" class="w-4 h-4"></i> Total Target Bulanan
+              </span>
+              <span id="f-total" class="text-lg font-bold text-blue-800 font-mono">Rp 0</span>
             </div>
           </div>
         </div>
@@ -301,33 +405,13 @@
       },
       buttonsStyling: false,
       didOpen: () => {
-        // Re-init Lucide untuk icon di dalam SweetAlert
         if (window.lucide) lucide.createIcons();
-
-        const nominalEl = document.getElementById('f-nominal');
-        const previewEl = document.getElementById('f-nominal-preview');
-
-        // Attach auto-format
-        attachNumberFormat(nominalEl);
-
-        // Preview live
-        function updatePreview() {
-          const val = parseNumberInput(nominalEl.value);
-          previewEl.textContent = 'Rp ' + val.toLocaleString('id-ID');
-        }
-
-        nominalEl.addEventListener('input', updatePreview);
-
-        // Set initial preview
-        updatePreview();
-
-        // Focus ke input
-        setTimeout(() => nominalEl.focus(), 100);
+        attachAllDetailEvents();
+        updateTotal();
       },
       preConfirm: () => {
         const tahun = Number(document.getElementById('f-tahun').value);
         const bulan = Number(document.getElementById('f-bulan').value);
-        const nominal = parseNumberInput(document.getElementById('f-nominal').value);
 
         if (!tahun || tahun < 2020 || tahun > 2099) {
           Swal.showValidationMessage('Tahun harus antara 2020 - 2099');
@@ -337,35 +421,73 @@
           Swal.showValidationMessage('Bulan tidak valid');
           return false;
         }
-        if (nominal <= 0) {
-          Swal.showValidationMessage('Nominal target harus lebih dari 0');
+
+        // Ambil semua detail dari DOM
+        const rows = document.querySelectorAll('#detail-container .detail-row');
+        const details = [];
+        let valid = true;
+        let errMsg = '';
+
+        rows.forEach((row, idx) => {
+          const kategoriId = Number(row.querySelector('.detail-kategori').value);
+          const nominal = parseNumberInput(row.querySelector('.detail-nominal').value);
+
+          if (!kategoriId) {
+            valid = false;
+            errMsg = `Baris ${idx + 1}: Kategori belum dipilih`;
+          }
+          if (nominal <= 0) {
+            valid = false;
+            errMsg = `Baris ${idx + 1}: Nominal harus lebih dari 0`;
+          }
+          if (valid) {
+            details.push({ kategoriId, nominal });
+          }
+        });
+
+        if (details.length === 0) {
+          Swal.showValidationMessage('Minimal 1 komponen harus diisi');
           return false;
         }
-        return { tahun, bulan, nominal };
+        if (!valid) {
+          Swal.showValidationMessage(errMsg);
+          return false;
+        }
+
+        // Cek duplikat kategori dalam 1 bulan
+        const kategoriIds = details.map(d => d.kategoriId);
+        const dupe = kategoriIds.find((k, i) => kategoriIds.indexOf(k) !== i);
+        if (dupe) {
+          const kat = kategoriList.find(x => x.id === dupe);
+          Swal.showValidationMessage(`Komponen "${kat.nama}" duplikat. Hapus salah satu.`);
+          return false;
+        }
+
+        return { tahun, bulan, details };
       }
     }).then(r => {
       if (!r.isConfirmed) return;
       const data = r.value;
       const db = DB.load();
       const unit = AUTH.currentUser().unit || 'Bagian Keuangan';
+      const totalNominal = data.details.reduce((s, d) => s + d.nominal, 0);
 
       if (t) {
         // === UPDATE ===
         const idx = db.targets.findIndex(x => x.id === id);
-        const before = formatRupiah(db.targets[idx].nominal);
+        const beforeTotal = getTotalTargetBulanan(db.targets[idx]);
         db.targets[idx] = { ...db.targets[idx], ...data };
         DB.save(db);
         recordAudit({
           action: 'UPDATE',
           module: 'Target',
           recordId: `TGT-${String(id).padStart(5, '0')}`,
-          before,
-          after: formatRupiah(data.nominal)
+          before: `${monthName(t.bulan)} ${t.tahun} — ${formatRupiah(beforeTotal)}`,
+          after: `${monthName(data.bulan)} ${data.tahun} — ${formatRupiah(totalNominal)} (${data.details.length} komponen)`
         });
         toastSuccess('Target berhasil diupdate');
       } else {
         // === CREATE ===
-        // Cek duplikat bulan di tahun yang sama
         if (db.targets.some(x => x.tahun === data.tahun && x.bulan === data.bulan)) {
           toastError(`Target untuk ${monthName(data.bulan)} ${data.tahun} sudah ada`);
           return;
@@ -378,36 +500,129 @@
           action: 'CREATE',
           module: 'Target',
           recordId: `TGT-${String(newId).padStart(5, '0')}`,
-          after: formatRupiah(data.nominal)
+          after: `${monthName(data.bulan)} ${data.tahun} — ${formatRupiah(totalNominal)} (${data.details.length} komponen)`
         });
-        toastSuccess('Target berhasil ditambahkan');
+        toastSuccess('Target bulanan berhasil ditambahkan');
       }
       render();
     });
   }
 
-  // ============ SET NOMINAL CEPAT ============
-  function setNominal(value) {
-    const el = document.getElementById('f-nominal');
-    if (!el) return;
-    el.value = formatNumberInput(value);
-    el.dispatchEvent(new Event('input'));
-    el.focus();
+  // ============ RENDER SATU BARIS DETAIL ============
+  function renderDetailRow(detail, idx, kategoriList) {
+    const options = kategoriList.map(k =>
+      `<option value="${k.id}" ${detail.kategoriId === k.id ? 'selected' : ''}>${k.nama}</option>`
+    ).join('');
+
+    return `
+      <div class="detail-row flex items-center gap-2 detail-item" data-idx="${idx}">
+        <select class="detail-kategori flex-1 px-2.5 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white">
+          <option value="">— Pilih Komponen —</option>
+          ${options}
+        </select>
+        <div class="relative w-44">
+          <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-semibold pointer-events-none">Rp</span>
+          <input type="text" inputmode="numeric" autocomplete="off"
+            class="detail-nominal input-nominal w-full pl-8 pr-2 py-2 border border-gray-200 rounded-lg text-sm text-right font-mono focus:ring-2 focus:ring-blue-500"
+            value="${formatNumberInput(detail.nominal)}" placeholder="0" />
+        </div>
+        <button type="button" onclick="removeDetailRow(this)"
+          class="text-red-500 hover:bg-red-50 p-2 rounded-lg transition flex-shrink-0" title="Hapus baris">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>`;
+  }
+
+  // ============ TAMBAH BARIS DETAIL ============
+  function addDetailRow() {
+    const container = document.getElementById('detail-container');
+    if (!container) return;
+    const db = DB.load();
+    const kategoriList = db.master.kategoriTarget || [];
+    const usedIds = Array.from(container.querySelectorAll('.detail-kategori')).map(s => Number(s.value));
+    const available = kategoriList.find(k => !usedIds.includes(k.id));
+
+    const html = renderDetailRow(
+      { kategoriId: available ? available.id : '', nominal: 0 },
+      container.children.length,
+      kategoriList
+    );
+    container.insertAdjacentHTML('beforeend', html);
+
+    if (window.lucide) lucide.createIcons();
+    attachAllDetailEvents();
+    updateTotal();
+
+    // Focus ke baris baru
+    const rows = container.querySelectorAll('.detail-row');
+    const lastRow = rows[rows.length - 1];
+    if (lastRow) lastRow.querySelector('.detail-nominal').focus();
+  }
+
+  // ============ HAPUS BARIS DETAIL ============
+  function removeDetailRow(btn) {
+    const row = btn.closest('.detail-row');
+    if (!row) return;
+    const container = document.getElementById('detail-container');
+    if (container.children.length === 1) {
+      toastError('Minimal 1 komponen harus ada');
+      return;
+    }
+    row.style.opacity = '0';
+    setTimeout(() => {
+      row.remove();
+      updateTotal();
+    }, 150);
+  }
+
+  // ============ ATTACH EVENTS SEMUA BARIS ============
+  function attachAllDetailEvents() {
+    document.querySelectorAll('#detail-container .detail-row').forEach(row => {
+      const nomEl = row.querySelector('.detail-nominal');
+      if (nomEl && !nomEl.dataset.bound) {
+        attachNumberFormat(nomEl);
+        nomEl.addEventListener('input', updateTotal);
+        nomEl.dataset.bound = '1';
+      }
+      const katEl = row.querySelector('.detail-kategori');
+      if (katEl && !katEl.dataset.bound) {
+        katEl.addEventListener('change', updateTotal);
+        katEl.dataset.bound = '1';
+      }
+    });
+  }
+
+  // ============ UPDATE TOTAL REAL-TIME ============
+  function updateTotal() {
+    const totalEl = document.getElementById('f-total');
+    if (!totalEl) return;
+    let total = 0;
+    document.querySelectorAll('#detail-container .detail-nominal').forEach(inp => {
+      total += parseNumberInput(inp.value);
+    });
+    totalEl.textContent = formatRupiah(total);
   }
 
   // ============ DELETE ============
   function deleteItem(id) {
     const t = DB.find('targets', x => x.id === id);
+    const total = getTotalTargetBulanan(t);
     const realCount = DB.filter('realisasis', r => r.targetId === id).length;
+    const detailCount = (t.details || []).length;
 
-    let htmlMsg = `Target <b>${monthName(t.bulan)} ${t.tahun}</b> (${formatRupiah(t.nominal)}) akan dihapus permanen.`;
-    if (realCount > 0) {
-      htmlMsg += `<br><br><span class="text-red-600 font-semibold">⚠ Perhatian:</span> Terdapat <b>${realCount} realisasi</b> terkait yang juga akan dihapus.`;
-    }
+    let htmlMsg = `
+      <div class="text-sm text-gray-600 space-y-2">
+        <p>Target <b>${monthName(t.bulan)} ${t.tahun}</b> akan dihapus permanen.</p>
+        <div class="bg-gray-50 rounded-lg p-3 text-xs space-y-1">
+          <div class="flex justify-between"><span>Total Target:</span><b class="text-blue-700">${formatRupiah(total)}</b></div>
+          <div class="flex justify-between"><span>Komponen:</span><b>${detailCount} item</b></div>
+        </div>
+        ${realCount > 0 ? `<p class="text-red-600 font-semibold">⚠ ${realCount} realisasi terkait juga akan dihapus.</p>` : ''}
+      </div>`;
 
     swalTheme.fire({
-      title: 'Hapus Target?',
-      html: `<div class="text-sm text-gray-600">${htmlMsg}</div>`,
+      title: 'Hapus Target Bulanan?',
+      html: htmlMsg,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonText: 'Ya, Hapus',
@@ -424,7 +639,7 @@
         action: 'DELETE',
         module: 'Target',
         recordId: `TGT-${String(id).padStart(5, '0')}`,
-        before: formatRupiah(t.nominal),
+        before: `${monthName(t.bulan)} ${t.tahun} — ${formatRupiah(total)}`,
         after: '-'
       });
 
