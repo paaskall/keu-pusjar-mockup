@@ -481,22 +481,71 @@ function buildTopbar() {
 // ============================================================
 // LAYOUT WRAPPER
 // ============================================================
+// ============================================================
+// LAYOUT WRAPPER — Sidebar Fixed (Opsi A)
+// Sidebar selalu terlihat, hanya konten yang scroll
+// ============================================================
 function renderLayout(activePage, mainContent) {
   const u = AUTH.require();
   if (!u) return;
 
   document.body.innerHTML = `
-    <div class="flex min-h-screen bg-gray-50">
-      <aside class="w-64 bg-white border-r border-gray-200 flex-shrink-0 hidden md:flex flex-col">
+    <div class="min-h-screen bg-gray-50">
+
+      <!-- SIDEBAR — Fixed, full height, scroll independen -->
+      <aside class="w-64 bg-white border-r border-gray-200 flex-col
+                    hidden md:flex
+                    fixed inset-y-0 left-0 z-30">
         ${buildSidebar(activePage)}
       </aside>
-      <main class="flex-1 flex flex-col min-w-0">
-        <header class="bg-white border-b border-gray-200 px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-20">
+
+      <!-- MOBILE SIDEBAR (overlay) -->
+      <aside id="mobileSidebar"
+             class="w-64 bg-white border-r border-gray-200 flex-col
+                    hidden
+                    fixed inset-y-0 left-0 z-40 shadow-2xl">
+        ${buildSidebar(activePage)}
+      </aside>
+      <div id="sidebarOverlay"
+           class="fixed inset-0 bg-black/40 z-35 hidden md:hidden"
+           onclick="closeMobileSidebar()"></div>
+
+      <!-- MAIN — kasih margin kiri 64 (16rem) di desktop -->
+      <div class="md:ml-64 flex flex-col min-h-screen">
+
+        <!-- TOPBAR — Sticky -->
+        <header class="bg-white border-b border-gray-200 px-4 sm:px-6 py-4
+                       flex items-center justify-between
+                       sticky top-0 z-20">
           ${buildTopbar()}
         </header>
-        <div class="p-4 sm:p-6 flex-1">${mainContent}</div>
-      </main>
+
+        <!-- KONTEN -->
+        <div class="p-4 sm:p-6 flex-1">
+          ${mainContent}
+        </div>
+      </div>
+
     </div>`;
 
   if (window.lucide) lucide.createIcons();
+}
+
+// ============================================================
+// MOBILE SIDEBAR — Toggle
+// ============================================================
+function openMobileSidebar() {
+  const sidebar = document.getElementById('mobileSidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  if (sidebar) sidebar.classList.remove('hidden');
+  if (sidebar) sidebar.classList.add('flex');
+  if (overlay) overlay.classList.remove('hidden');
+}
+
+function closeMobileSidebar() {
+  const sidebar = document.getElementById('mobileSidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  if (sidebar) sidebar.classList.add('hidden');
+  if (sidebar) sidebar.classList.remove('flex');
+  if (overlay) overlay.classList.add('hidden');
 }
