@@ -3,13 +3,24 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Laporan</title>
+<title>SIKAP — Laporan</title>
 <link rel="icon" href="assets/logo-lanri.png" type="image/x-icon">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<style>body{font-family:'Inter',sans-serif;}</style>
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  .detail-expand {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .detail-expand.open { max-height: 3000px; }
+  .chevron-icon { transition: transform 0.3s ease; }
+  .chevron-icon.rotate { transform: rotate(180deg); }
+  tr[data-month-id] { cursor: pointer; }
+</style>
 </head>
 <body class="bg-gray-50 text-gray-800">
 <div id="app"></div>
@@ -20,95 +31,391 @@
 <script>
   AUTH.requireRole(['keuangan', 'pimpinan']);
   let filterTahun = 2026;
+  const openMonths = new Set();
 
-  function render() {
-    const rows = DB.filter('targets', t => t.tahun === filterTahun).map(t => {
-      const real = DB.filter('realisasis', r => r.targetId === t.id).reduce((s, r) => s + r.nominal, 0);
-      return {
-        bulan: monthName(t.bulan),
-        target: t.nominal,
-        real: real,
-        capaian: t.nominal > 0 ? Math.round((real / t.nominal) * 100) : 0
-      };
-    }).sort((a,b) => {
-      const order = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-      return order.indexOf(a.bulan) - order.indexOf(b.bulan);
+  // ============================================================
+  // HELPER: Group detail per Program → Sub
+  // ============================================================
+  function groupByProgram(details) {
+    const groups = {};
+    details.forEach(d => {
+      const progId = d.programId;
+      if (!groups[progId]) groups[progId] = {};
+      const subId = d.subKegiatanId || 0;
+      if (!groups[progId][subId]) groups[progId][subId] = [];
+      groups[progId][subId].push(d);
     });
+    return groups;
+  }
 
-    const totalT = rows.reduce((s, r) => s + r.target, 0);
-    const totalR = rows.reduce((s, r) => s + r.real, 0);
+  // ============================================================
+  // RENDER
+  // ============================================================
+  function render() {
+    const db = DB.load();
+    const targets = DB.filter('targets', t => t.tahun === filterTahun).sort((a,b) => a.bulan - b.bulan);
+    const realisasis = DB.filter('realisasis', r => r.tahun === filterTahun);
+
+    const totalTarget = targets.reduce((s, t) => s + getTotalTargetBulanan(t), 0);
+    const totalReal = realisasis.reduce((s, r) => s + getRealisasiTotal(r), 0);
+    const capaianTotal = totalTarget > 0 ? Math.round((totalReal / totalTarget) * 100) : 0;
 
     const main = `
-      <div class="mb-6">
-        <h2 class="text-2xl font-bold text-gray-800">Laporan</h2>
-        <p class="text-sm text-gray-500 mt-1">Laporan realisasi per periode</p>
-      </div>
-
-      <div class="bg-white rounded-xl border border-gray-100 p-4 mb-5 shadow-sm flex flex-wrap gap-3 items-end">
+      <!-- Header -->
+      <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Tahun</label>
-          <select onchange="changeTahun(this.value)" class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
-            ${[2026, 2025, 2024].map(y => `<option ${y === filterTahun ? 'selected' : ''}>${y}</option>`).join('')}
-          </select>
+          <div class="flex items-center gap-3 mb-1">
+            <div class="w-1 h-8 bg-gradient-to-b from-blue-700 to-blue-400 rounded-full"></div>
+            <h2 class="text-2xl font-bold text-gray-800">Laporan</h2>
+          </div>
         </div>
-        <div class="ml-auto flex gap-2">
-          <button onclick="doExport('PDF')" class="bg-red-50 hover:bg-red-100 text-red-700 text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2 transition">
+        <div class="flex gap-2">
+          <button onclick="doExport('PDF')" class="bg-red-50 hover:bg-red-100 text-red-700 text-sm font-medium px-4 py-2.5 rounded-lg flex items-center gap-2 transition">
             <i data-lucide="file-text" class="w-4 h-4"></i> PDF
           </button>
-          <button onclick="doExport('CSV')" class="bg-green-50 hover:bg-green-100 text-green-700 text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2 transition">
+          <button onclick="doExport('CSV')" class="bg-green-50 hover:bg-green-100 text-green-700 text-sm font-medium px-4 py-2.5 rounded-lg flex items-center gap-2 transition">
             <i data-lucide="table" class="w-4 h-4"></i> CSV
           </button>
         </div>
       </div>
 
+      <!-- Stat Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-5">
+        ${statCard({ label: 'Total Target ' + filterTahun, value: formatRupiah(totalTarget), icon: 'target', color: 'blue' })}
+        ${statCard({ label: 'Total Realisasi', value: formatRupiah(totalReal), icon: 'trending-up', color: 'emerald' })}
+        ${statCard({ label: 'Capaian', value: capaianTotal + '%', icon: 'percent', color: 'amber' })}
+      </div>
+
+      <!-- Filter Tahun -->
+      <div class="bg-white rounded-xl border border-gray-100 p-4 mb-5 shadow-sm flex flex-wrap gap-3 items-end">
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Tahun</label>
+          <select onchange="changeTahun(this.value)" class="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white">
+            ${[2026, 2025, 2024].map(y => `<option ${y === filterTahun ? 'selected' : ''}>${y}</option>`).join('')}
+          </select>
+        </div>
+        <div class="text-xs text-gray-500 ml-auto self-center">
+          ${targets.length} bulan · ${realisasis.length} transaksi realisasi
+        </div>
+      </div>
+
+      <!-- Tabel Rekap Bulanan -->
       <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <table class="w-full text-sm">
-          <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
-            <tr>
-              <th class="text-left px-4 py-3 font-semibold">Bulan</th>
-              <th class="text-right px-4 py-3 font-semibold">Target</th>
-              <th class="text-right px-4 py-3 font-semibold">Realisasi</th>
-              <th class="text-right px-4 py-3 font-semibold">Capaian</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100">
-            ${rows.map(r => `
-              <tr class="hover:bg-blue-50/40 transition">
-                <td class="px-4 py-3 font-medium text-gray-800">${r.bulan}</td>
-                <td class="px-4 py-3 text-right text-blue-700 font-semibold">${formatRupiah(r.target)}</td>
-                <td class="px-4 py-3 text-right text-emerald-700 font-semibold">${formatRupiah(r.real)}</td>
-                <td class="px-4 py-3 text-right">
-                  <span class="font-bold ${r.capaian >= 100 ? 'text-green-700' : r.capaian >= 70 ? 'text-blue-700' : 'text-amber-700'}">${r.capaian}%</span>
-                </td>
-              </tr>`).join('')}
-          </tbody>
-          <tfoot class="bg-gray-50 border-t-2 border-gray-200">
-            <tr>
-              <td class="px-4 py-3 font-bold text-gray-700">TOTAL</td>
-              <td class="px-4 py-3 text-right font-bold text-blue-800">${formatRupiah(totalT)}</td>
-              <td class="px-4 py-3 text-right font-bold text-emerald-700">${formatRupiah(totalR)}</td>
-              <td class="px-4 py-3 text-right font-bold text-amber-700">${totalT ? Math.round((totalR/totalT)*100) : 0}%</td>
-            </tr>
-          </tfoot>
-        </table>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+              <tr>
+                <th class="text-center px-5 py-4 font-semibold w-16">#</th>
+                <th class="text-left px-5 py-4 font-semibold">Bulan</th>
+                <th class="text-center px-5 py-4 font-semibold w-36">Program</th>
+                <th class="text-right px-5 py-4 font-semibold">Target</th>
+                <th class="text-right px-5 py-4 font-semibold">Realisasi</th>
+                <th class="text-center px-5 py-4 font-semibold w-32">Capaian</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              ${targets.length === 0 ? `
+                <tr>
+                  <td colspan="6" class="text-center py-10 text-gray-400">
+                    <i data-lucide="inbox" class="w-10 h-10 mx-auto mb-2 opacity-40"></i>
+                    <p class="text-sm">Belum ada data untuk tahun ${filterTahun}</p>
+                  </td>
+                </tr>` :
+                targets.map((t, i) => {
+                  const totalTargetBulan = getTotalTargetBulanan(t);
+                  const realBulan = DB.filter('realisasis', r => r.targetId === t.id)
+                    .reduce((s, r) => s + getRealisasiTotal(r), 0);
+                  const cap = totalTargetBulan > 0 ? Math.round((realBulan / totalTargetBulan) * 100) : 0;
+                  const isOpen = openMonths.has(t.id);
+
+                  const capColor = cap >= 100 ? 'text-green-700 bg-green-50'
+                                 : cap >= 70 ? 'text-blue-700 bg-blue-50'
+                                 : cap >= 40 ? 'text-amber-700 bg-amber-50'
+                                 : 'text-red-700 bg-red-50';
+                  const barColor = cap >= 100 ? 'from-green-600 to-green-400'
+                                 : cap >= 70 ? 'from-blue-700 to-blue-500'
+                                 : cap >= 40 ? 'from-amber-500 to-amber-400'
+                                 : 'from-red-500 to-red-400';
+
+                  // Group detail target per program
+                  const grouped = groupByProgram(t.details || []);
+                  const programIds = Object.keys(grouped).map(Number).sort((a,b) => a-b);
+
+                  // Realisasi untuk target ini
+                  const realisasiRecords = DB.filter('realisasis', r => r.targetId === t.id);
+
+                  // Hitung realisasi per program & komponen
+                  const realPerProgram = {};
+                  const realPerKomponen = {};
+                  realisasiRecords.forEach(r => {
+                    (r.details || []).forEach(rd => {
+                      realPerProgram[rd.programId] = (realPerProgram[rd.programId] || 0) + (rd.nominal || 0);
+                      const key = `${rd.programId}-${rd.subKegiatanId || 0}-${rd.komponenId}`;
+                      realPerKomponen[key] = (realPerKomponen[key] || 0) + (rd.nominal || 0);
+                    });
+                  });
+
+                  const programBlocksHtml = programIds.map(progId => {
+                    const prog = getProgramById(progId);
+                    const progName = prog ? prog.nama : 'Tidak diketahui';
+                    const progKode = prog ? prog.kode : '???';
+                    const subIds = Object.keys(grouped[progId]).map(Number).sort((a,b) => a-b);
+
+                    let progTarget = 0;
+                    subIds.forEach(subId => {
+                      grouped[progId][subId].forEach(d => {
+                        progTarget += getKomponenNominal(d);
+                      });
+                    });
+                    const progReal = realPerProgram[progId] || 0;
+                    const progCap = progTarget > 0 ? Math.round((progReal / progTarget) * 100) : 0;
+                    const progCapColor = progCap >= 100 ? 'text-green-700 bg-green-100'
+                                       : progCap >= 70 ? 'text-blue-700 bg-blue-100'
+                                       : progCap >= 40 ? 'text-amber-700 bg-amber-100'
+                                       : 'text-red-700 bg-red-100';
+
+                    const subBlocksHtml = subIds.map(subId => {
+                      const sub = getSubKegiatanById(subId);
+                      const subName = sub ? sub.nama : 'Tanpa Sub-Kegiatan';
+                      const subKode = sub ? sub.kode : '-';
+                      const details = grouped[progId][subId];
+
+                      let subTarget = 0;
+                      details.forEach(d => { subTarget += getKomponenNominal(d); });
+                      const subReal = details.reduce((s, d) => {
+                        const key = `${progId}-${subId}-${d.komponenId}`;
+                        return s + (realPerKomponen[key] || 0);
+                      }, 0);
+                      const subCap = subTarget > 0 ? Math.round((subReal / subTarget) * 100) : 0;
+
+                      const komponenRowsHtml = details.map(d => {
+                        const kom = getKomponenBelanjaById(d.komponenId);
+                        const targetNom = getKomponenNominal(d);
+                        const key = `${progId}-${subId}-${d.komponenId}`;
+                        const realNom = realPerKomponen[key] || 0;
+                        const capKom = targetNom > 0 ? Math.round((realNom / targetNom) * 100) : 0;
+                        const capKomColor = capKom >= 100 ? 'text-green-700 bg-green-50'
+                                          : capKom >= 70 ? 'text-blue-700 bg-blue-50'
+                                          : capKom >= 40 ? 'text-amber-700 bg-amber-50'
+                                          : 'text-red-700 bg-red-50';
+
+                        return `
+                          <tr class="border-b border-gray-100 last:border-0 hover:bg-blue-50/20">
+                            <td class="py-2 pl-16 pr-3 text-left">
+                              <div class="flex items-center gap-2">
+                                <div class="w-6 h-6 rounded-md bg-emerald-50 text-emerald-700 flex items-center justify-center flex-shrink-0">
+                                  <i data-lucide="receipt" class="w-3 h-3"></i>
+                                </div>
+                                <div class="min-w-0">
+                                  <p class="text-xs font-medium text-gray-800 truncate">${kom ? kom.nama : '-'}</p>
+                                  <p class="text-[9px] text-gray-400 font-mono">${kom ? kom.kode : '-'}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td class="py-2 px-3 text-right font-mono text-xs text-blue-700 whitespace-nowrap">${formatRupiah(targetNom)}</td>
+                            <td class="py-2 px-3 text-right font-mono text-xs text-emerald-700 whitespace-nowrap">${formatRupiah(realNom)}</td>
+                            <td class="py-2 pl-3 pr-4 text-right w-20">
+                              <span class="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded ${capKomColor}">${capKom}%</span>
+                            </td>
+                          </tr>`;
+                      }).join('');
+
+                      return `
+                        <div class="mb-2 last:mb-0">
+                          <div class="flex items-center gap-2 px-3 py-1.5 bg-indigo-50/70 rounded-t-md border border-indigo-100">
+                            <div class="w-5 h-5 rounded bg-indigo-100 text-indigo-700 flex items-center justify-center flex-shrink-0">
+                              <i data-lucide="git-branch" class="w-2.5 h-2.5"></i>
+                            </div>
+                            <span class="text-[10px] font-mono font-bold text-indigo-700 bg-white px-1.5 py-0.5 rounded">${subKode}</span>
+                            <span class="text-xs font-semibold text-gray-800 flex-1 truncate">${subName}</span>
+                            <span class="text-[10px] text-blue-700 font-mono whitespace-nowrap">T: ${formatRupiah(subTarget)}</span>
+                            <span class="text-[10px] text-emerald-700 font-mono whitespace-nowrap">R: ${formatRupiah(subReal)}</span>
+                            <span class="text-[10px] font-bold ${subCap >= 100 ? 'text-green-700' : subCap >= 70 ? 'text-blue-700' : subCap >= 40 ? 'text-amber-700' : 'text-red-700'} w-10 text-right">${subCap}%</span>
+                          </div>
+                          <div class="bg-white border border-t-0 border-indigo-100 rounded-b-md overflow-hidden">
+                            <table class="w-full">
+                              <tbody>${komponenRowsHtml}</tbody>
+                            </table>
+                          </div>
+                        </div>`;
+                    }).join('');
+
+                    return `
+                      <div class="mb-3 last:mb-0">
+                        <div class="flex items-center gap-2.5 px-3 py-2 bg-blue-100/80 rounded-lg border border-blue-200 mb-2">
+                          <div class="w-7 h-7 rounded-md bg-blue-700 text-white flex items-center justify-center flex-shrink-0">
+                            <i data-lucide="folder-kanban" class="w-3.5 h-3.5"></i>
+                          </div>
+                          <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2">
+                              <span class="text-[10px] font-mono font-bold text-blue-700 bg-white px-1.5 py-0.5 rounded">${progKode}</span>
+                              <span class="text-xs font-bold text-blue-900 truncate">${progName}</span>
+                            </div>
+                          </div>
+                          <div class="flex items-center gap-3 text-[10px]">
+                            <span class="font-mono text-blue-700">T: <b>${formatRupiah(progTarget)}</b></span>
+                            <span class="font-mono text-emerald-700">R: <b>${formatRupiah(progReal)}</b></span>
+                            <span class="font-bold px-1.5 py-0.5 rounded ${progCapColor}">${progCap}%</span>
+                          </div>
+                        </div>
+                        <div class="pl-3">${subBlocksHtml}</div>
+                      </div>`;
+                  }).join('');
+
+                  return `
+                    <tr class="hover:bg-blue-50/40 transition"
+                        data-month-id="${t.id}"
+                        onclick="toggleMonth(${t.id})">
+                      <td class="px-5 py-4 text-center">
+                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 text-gray-600 text-xs font-bold">${i + 1}</span>
+                      </td>
+                      <td class="px-5 py-4">
+                        <div class="flex items-center gap-2">
+                          <span class="font-semibold text-gray-800">${monthName(t.bulan)}</span>
+                          <i data-lucide="chevron-down" class="chevron-icon w-3.5 h-3.5 text-gray-400 flex-shrink-0 ${isOpen ? 'rotate' : ''}"></i>
+                        </div>
+                      </td>
+                      <td class="px-5 py-4 text-center">
+                        <span class="inline-flex items-center gap-1.5 text-[10px] bg-purple-50 text-purple-700 font-semibold px-2.5 py-1 rounded-full">
+                          <i data-lucide="folder-kanban" class="w-3 h-3"></i> ${programIds.length} program
+                        </span>
+                      </td>
+                      <td class="px-5 py-4 text-right text-blue-700 font-semibold whitespace-nowrap font-mono">${formatRupiah(totalTargetBulan)}</td>
+                      <td class="px-5 py-4 text-right text-emerald-700 font-semibold whitespace-nowrap font-mono">${formatRupiah(realBulan)}</td>
+                      <td class="px-5 py-4">
+                        <div class="flex items-center justify-center gap-2">
+                          <div class="w-16 bg-gray-100 rounded-full h-2 overflow-hidden">
+                            <div class="bg-gradient-to-r ${barColor} h-full rounded-full transition-all duration-700"
+                                 style="width:${Math.min(cap, 100)}%"></div>
+                          </div>
+                          <span class="inline-block text-[10px] font-bold px-2 py-1 rounded ${capColor} whitespace-nowrap">${cap}%</span>
+                        </div>
+                      </td>
+                    </tr>
+
+                    <tr data-expand-month="${t.id}" class="${isOpen ? '' : 'hidden'} bg-gradient-to-r from-blue-50/40 to-indigo-50/20">
+                      <td colspan="6" class="p-0">
+                        <div class="detail-expand ${isOpen ? 'open' : ''}">
+                          <div class="px-6 py-4">
+                            <div class="flex items-center justify-between mb-4">
+                              <div class="flex items-center gap-2">
+                                <i data-lucide="layers" class="w-4 h-4 text-blue-700"></i>
+                                <span class="text-xs font-bold text-blue-900 uppercase tracking-wide">
+                                  Breakdown ${monthName(t.bulan)} ${t.tahun}
+                                </span>
+                              </div>
+                              <span class="text-xs text-gray-500">
+                                Total Target: <b class="text-blue-700 font-mono">${formatRupiah(totalTargetBulan)}</b>
+                              </span>
+                            </div>
+
+                            ${programBlocksHtml || '<p class="text-sm text-gray-400 text-center py-4">Tidak ada data</p>'}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+            ${targets.length > 0 ? `
+              <tfoot class="bg-gradient-to-r from-blue-50 to-indigo-50 border-t-2 border-blue-200">
+                <tr>
+                  <td colspan="3" class="px-5 py-4 font-bold text-blue-900 text-sm">TOTAL TAHUNAN ${filterTahun}</td>
+                  <td class="px-5 py-4 text-right font-mono font-bold text-blue-800 text-sm whitespace-nowrap">${formatRupiah(totalTarget)}</td>
+                  <td class="px-5 py-4 text-right font-mono font-bold text-emerald-700 text-sm whitespace-nowrap">${formatRupiah(totalReal)}</td>
+                  <td class="px-5 py-4 text-center">
+                    <span class="inline-block text-xs font-bold px-3 py-1.5 rounded-full bg-amber-100 text-amber-700">${capaianTotal}%</span>
+                  </td>
+                </tr>
+              </tfoot>` : ''}
+          </table>
+        </div>
       </div>
     `;
 
     renderLayout('laporan.html', main);
+    if (window.lucide) lucide.createIcons();
   }
 
-  function changeTahun(y) { filterTahun = Number(y); render(); }
+  // ============================================================
+  // TOGGLE ACCORDION
+  // ============================================================
+  function toggleMonth(monthId) {
+    const row = document.querySelector(`tr[data-month-id="${monthId}"]`);
+    const expandRow = document.querySelector(`tr[data-expand-month="${monthId}"]`);
+    if (!row || !expandRow) return;
+
+    const container = expandRow.querySelector('.detail-expand');
+    const chevron = row.querySelector('.chevron-icon');
+    const isOpen = openMonths.has(monthId);
+
+    if (isOpen) {
+      openMonths.delete(monthId);
+      container.classList.remove('open');
+      if (chevron) chevron.classList.remove('rotate');
+      row.classList.remove('bg-blue-50/60');
+      setTimeout(() => {
+        if (!openMonths.has(monthId)) expandRow.classList.add('hidden');
+      }, 350);
+    } else {
+      openMonths.add(monthId);
+      expandRow.classList.remove('hidden');
+      void container.offsetHeight;
+      container.classList.add('open');
+      if (chevron) chevron.classList.add('rotate');
+      row.classList.add('bg-blue-50/60');
+    }
+  }
+
+  // ============================================================
+  // ACTIONS
+  // ============================================================
+  function changeTahun(y) {
+    filterTahun = Number(y);
+    openMonths.clear();
+    render();
+  }
 
   function doExport(format) {
-    const rows = DB.filter('targets', t => t.tahun === filterTahun).map(t => {
-      const real = DB.filter('realisasis', r => r.targetId === t.id).reduce((s, r) => s + r.nominal, 0);
+    const targets = DB.filter('targets', t => t.tahun === filterTahun).sort((a,b) => a.bulan - b.bulan);
+    const realisasis = DB.filter('realisasis', r => r.tahun === filterTahun);
+
+    if (targets.length === 0) {
+      toastError('Tidak ada data untuk diexport');
+      return;
+    }
+
+    // === PDF: pakai breakdown detail ===
+    if (format === 'PDF') {
+      confirmAction(
+        'Export PDF dengan Breakdown?',
+        'PDF akan berisi rincian lengkap.',
+        () => {
+          exportPDFDetail({
+            tahun: filterTahun,
+            targets,
+            realisasis,
+            title: `Laporan Rekap Bulanan ${filterTahun}`
+          });
+        },
+        { icon: 'question', confirmText: 'Ya, Cetak PDF' }
+      );
+      return;
+    }
+
+    // === CSV: rekap bulanan ===
+    const rows = targets.map(t => {
+      const totalTarget = getTotalTargetBulanan(t);
+      const real = DB.filter('realisasis', r => r.targetId === t.id)
+        .reduce((s, r) => s + getRealisasiTotal(r), 0);
       return {
-        Tahun: t.tahun, Bulan: monthName(t.bulan),
-        Target: t.nominal, Realisasi: real,
-        Capaian: t.nominal > 0 ? Math.round((real / t.nominal) * 100) + '%' : '0%'
+        Tahun: t.tahun,
+        Bulan: monthName(t.bulan),
+        Target: totalTarget,
+        Realisasi: real,
+        Capaian: totalTarget > 0 ? Math.round((real / totalTarget) * 100) + '%' : '0%'
       };
     });
-    exportData(format, `laporan_${filterTahun}`, rows);
+    exportData('CSV', `laporan_rekap_bulanan_${filterTahun}`, rows);
   }
 
   render();
