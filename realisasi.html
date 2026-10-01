@@ -20,7 +20,7 @@
     overflow: hidden;
     transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  .detail-expand.open { max-height: 1000px; }
+  .detail-expand.open { max-height: 2000px; }
   .chevron-icon { transition: transform 0.3s ease; }
   .chevron-icon.rotate { transform: rotate(180deg); }
   tr[data-realisasi-id] { cursor: pointer; }
@@ -37,36 +37,43 @@
   let filterTahun = 2026;
   const openDetails = new Set();
 
-  // ============ HELPER: HITUNG TOTAL REALISASI ============
-  function hitungTotalRealisasi(r) {
-    if (!r) return 0;
-    // Struktur baru: pakai details
-    if (r.details && r.details.length > 0) {
-      return r.details.reduce((s, d) => s + (d.nominal || 0), 0);
-    }
-    // Struktur lama: fallback ke nominal
-    return r.nominal || 0;
+  // ============================================================
+  // HELPER: Group detail per Program → Sub
+  // ============================================================
+  function groupByProgram(details) {
+    const groups = {};
+    details.forEach(d => {
+      const progId = d.programId;
+      if (!groups[progId]) groups[progId] = {};
+      const subId = d.subKegiatanId || 0;
+      if (!groups[progId][subId]) groups[progId][subId] = [];
+      groups[progId][subId].push(d);
+    });
+    return groups;
   }
 
-  // ============ RENDER ============
+  // ============================================================
+  // RENDER
+  // ============================================================
   function render() {
-    const targets = DB.filter('targets', t => t.tahun === filterTahun).sort((a,b) => a.bulan - b.bulan);
-    const realisasis = DB.filter('realisasis', r => r.tahun === filterTahun).sort((a,b) => a.bulan - b.bulan);
     const db = DB.load();
-    const kategoriList = db.master.kategoriTarget || [];
+    const targets = DB.filter('targets', t => t.tahun === filterTahun);
+    const realisasis = DB.filter('realisasis', r => r.tahun === filterTahun).sort((a,b) => a.bulan - b.bulan);
 
-    // Stats
     const totalTarget = targets.reduce((s, t) => s + getTotalTargetBulanan(t), 0);
-    const totalRealisasi = realisasis.reduce((s, r) => s + hitungTotalRealisasi(r), 0);
+    const totalRealisasi = realisasis.reduce((s, r) => s + getRealisasiTotal(r), 0);
     const capaian = totalTarget > 0 ? Math.round((totalRealisasi / totalTarget) * 100) : 0;
 
     const main = `
       <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 class="text-2xl font-bold text-gray-800">Realisasi Keuangan</h2>
-          <p class="text-sm text-gray-500 mt-1">Input realisasi per komponen untuk setiap bulan</p>
+          <div class="flex items-center gap-3 mb-1">
+            <div class="w-1 h-8 bg-gradient-to-b from-emerald-600 to-emerald-400 rounded-full"></div>
+            <h2 class="text-2xl font-bold text-gray-800">Realisasi Keuangan</h2>
+          </div>
+          <p class="text-sm text-gray-500 ml-4">Input realisasi per komponen belanja untuk setiap bulan</p>
         </div>
-        <button onclick="openForm()" class="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-md shadow-blue-200 flex items-center gap-2 transition">
+        <button onclick="openForm()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-md shadow-emerald-200 flex items-center gap-2 transition">
           <i data-lucide="plus" class="w-4 h-4"></i> Input Realisasi
         </button>
       </div>
@@ -78,12 +85,12 @@
         ${statCard({ label: 'Capaian', value: capaian + '%', icon: 'percent', color: 'amber' })}
       </div>
 
-      <!-- Filter Tahun -->
+      <!-- Filter -->
       <div class="bg-white rounded-xl border border-gray-100 p-4 mb-5 shadow-sm flex flex-wrap gap-3 items-end">
         <div>
           <label class="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Tahun Anggaran</label>
-          <select id="filterTahun" onchange="changeTahun(this.value)"
-            class="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          <select onchange="changeTahun(this.value)"
+            class="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500">
             ${[2026, 2025, 2024].map(y => `<option ${y === filterTahun ? 'selected' : ''}>${y}</option>`).join('')}
           </select>
         </div>
@@ -100,10 +107,10 @@
               <tr>
                 <th class="text-center px-5 py-4 font-semibold w-16">#</th>
                 <th class="text-center px-5 py-4 font-semibold">Bulan</th>
-                <th class="text-center px-5 py-4 font-semibold w-40">Tanggal</th>
-                <th class="text-center px-5 py-4 font-semibold w-44">Komponen</th>
-                <th class="text-center px-5 py-4 font-semibold w-56">Nominal</th>
-                <th class="text-center px-5 py-4 font-semibold w-44">Aksi</th>
+                <th class="text-center px-5 py-4 font-semibold w-32">Tanggal</th>
+                <th class="text-center px-5 py-4 font-semibold w-40">Detail</th>
+                <th class="text-center px-5 py-4 font-semibold w-56">Realisasi</th>
+                <th class="text-center px-5 py-4 font-semibold w-32">Aksi</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -116,50 +123,136 @@
                   </td>
                 </tr>` :
                 realisasis.map((r, i) => {
-                  const totalR = hitungTotalRealisasi(r);
+                  const totalR = getRealisasiTotal(r);
                   const target = DB.find('targets', t => t.id === r.targetId);
                   const totalTargetBulan = target ? getTotalTargetBulanan(target) : 0;
                   const cap = totalTargetBulan > 0 ? Math.round((totalR / totalTargetBulan) * 100) : 0;
                   const isOpen = openDetails.has(r.id);
                   const detailCount = (r.details || []).length;
 
-                  // Build detail rows
-                  const detailRowsHtml = (r.details || []).map(d => {
-                    const kat = kategoriList.find(k => k.id === d.kategoriId);
-                    const targetKomponen = target ? (target.details || []).find(td => td.kategoriId === d.kategoriId) : null;
-                    const targetNominal = targetKomponen ? getKomponenNominal(targetKomponen) : 0;
-                    const capKomponen = targetNominal > 0 ? Math.round((d.nominal / targetNominal) * 100) : 0;
-                    const capColor = capKomponen >= 100 ? 'text-green-700 bg-green-50'
-                                   : capKomponen >= 70 ? 'text-blue-700 bg-blue-50'
-                                   : capKomponen >= 40 ? 'text-amber-700 bg-amber-50'
-                                   : 'text-red-700 bg-red-50';
+                  // Build hirarki accordion
+                  const grouped = groupByProgram(r.details || []);
+                  const programIds = Object.keys(grouped).map(Number).sort((a,b) => a-b);
+                  const realisasiPerDetail = getRealisasiPerDetail(r.targetId);
+
+                  const programBlocksHtml = programIds.map(progId => {
+                    const prog = getProgramById(progId);
+                    const progName = prog ? prog.nama : 'Tidak diketahui';
+                    const progKode = prog ? prog.kode : '???';
+
+                    let progTotal = 0;
+                    const subIds = Object.keys(grouped[progId]).map(Number).sort((a,b) => a-b);
+                    subIds.forEach(subId => {
+                      grouped[progId][subId].forEach(d => {
+                        progTotal += d.nominal || 0;
+                      });
+                    });
+                    const progPct = totalR > 0 ? ((progTotal / totalR) * 100).toFixed(1) : 0;
+
+                    const subBlocksHtml = subIds.map(subId => {
+                      const sub = getSubKegiatanById(subId);
+                      const subName = sub ? sub.nama : 'Tanpa Sub-Kegiatan';
+                      const subKode = sub ? sub.kode : '-';
+                      const details = grouped[progId][subId];
+
+                      let subTotal = 0;
+                      details.forEach(d => { subTotal += d.nominal || 0; });
+                      const subPct = totalR > 0 ? ((subTotal / totalR) * 100).toFixed(1) : 0;
+
+                      const komponenRowsHtml = details.map(d => {
+                        const kom = getKomponenBelanjaById(d.komponenId);
+                        const nominalR = d.nominal || 0;
+
+                        // Cari target untuk komponen ini
+                        let targetNominal = 0;
+                        if (target) {
+                          const tDetail = (target.details || []).find(td =>
+                            td.programId === d.programId &&
+                            td.subKegiatanId === d.subKegiatanId &&
+                            td.komponenId === d.komponenId
+                          );
+                          if (tDetail) targetNominal = getKomponenNominal(tDetail);
+                        }
+
+                        const capKom = targetNominal > 0 ? Math.round((nominalR / targetNominal) * 100) : 0;
+                        const capColor = capKom >= 100 ? 'bg-green-100 text-green-700'
+                                       : capKom >= 70 ? 'bg-blue-100 text-blue-700'
+                                       : capKom >= 40 ? 'bg-amber-100 text-amber-700'
+                                       : 'bg-red-100 text-red-700';
+
+                        return `
+                          <tr class="border-b border-gray-100 last:border-0 hover:bg-emerald-50/30">
+                            <td class="py-2.5 pl-14 pr-3 text-left">
+                              <div class="flex items-center gap-2">
+                                <div class="w-6 h-6 rounded-md bg-emerald-50 text-emerald-700 flex items-center justify-center text-[9px] font-bold flex-shrink-0">
+                                  <i data-lucide="receipt" class="w-3 h-3"></i>
+                                </div>
+                                <div class="min-w-0">
+                                  <p class="text-xs font-medium text-gray-800 truncate">${kom ? kom.nama : 'Tidak diketahui'}</p>
+                                  ${kom ? `<p class="text-[9px] text-gray-400 font-mono">${kom.kode}</p>` : ''}
+                                </div>
+                              </div>
+                            </td>
+                            <td class="py-2.5 px-3 text-right font-mono text-xs font-semibold text-emerald-700 whitespace-nowrap">${formatRupiah(nominalR)}</td>
+                            <td class="py-2.5 px-3 text-right font-mono text-[10px] text-gray-500 whitespace-nowrap">${formatRupiah(targetNominal)}</td>
+                            <td class="py-2.5 pl-3 pr-4 text-right">
+                              <span class="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded ${capColor}">${capKom}%</span>
+                            </td>
+                          </tr>`;
+                      }).join('');
+
+                      return `
+                        <div class="mb-3 last:mb-0">
+                          <div class="flex items-center gap-2 px-3 py-2 bg-indigo-50/70 rounded-t-lg border border-indigo-100">
+                            <div class="w-6 h-6 rounded-md bg-indigo-100 text-indigo-700 flex items-center justify-center flex-shrink-0">
+                              <i data-lucide="git-branch" class="w-3 h-3"></i>
+                            </div>
+                            <span class="text-[10px] font-mono font-bold text-indigo-700 bg-white px-1.5 py-0.5 rounded">${subKode}</span>
+                            <span class="text-xs font-semibold text-gray-800 flex-1 truncate">${subName}</span>
+                            <span class="text-xs font-bold text-indigo-700 whitespace-nowrap">${formatRupiah(subTotal)}</span>
+                            <span class="text-[10px] text-gray-500 w-12 text-right">${subPct}%</span>
+                          </div>
+                          <div class="bg-white border border-t-0 border-indigo-100 rounded-b-lg overflow-hidden">
+                            <table class="w-full">
+                              <thead class="bg-gray-50">
+                                <tr>
+                                  <th class="text-left pl-14 pr-3 py-1.5 text-[9px] uppercase text-gray-400 font-bold">Komponen</th>
+                                  <th class="text-right px-3 py-1.5 text-[9px] uppercase text-gray-400 font-bold">Realisasi</th>
+                                  <th class="text-right px-3 py-1.5 text-[9px] uppercase text-gray-400 font-bold">Target</th>
+                                  <th class="text-right pr-4 pl-3 py-1.5 text-[9px] uppercase text-gray-400 font-bold w-16">%</th>
+                                </tr>
+                              </thead>
+                              <tbody>${komponenRowsHtml}</tbody>
+                            </table>
+                          </div>
+                        </div>`;
+                    }).join('');
 
                     return `
-                      <tr class="border-b border-gray-100 last:border-0">
-                        <td class="py-2.5 pl-8 pr-3 text-left">
-                          <div class="flex items-center gap-2">
-                            <div class="w-7 h-7 rounded-md bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
-                              ${kat ? (kat.kode || kat.nama.substring(0, 3)).substring(0, 3) : '???'}
-                            </div>
-                            <span class="text-sm font-medium text-gray-800">${kat ? kat.nama : 'Tidak diketahui'}</span>
+                      <div class="mb-4 last:mb-0">
+                        <div class="flex items-center gap-2.5 px-3 py-2.5 bg-blue-100/80 rounded-lg border border-blue-200 mb-2">
+                          <div class="w-7 h-7 rounded-md bg-blue-700 text-white flex items-center justify-center flex-shrink-0">
+                            <i data-lucide="folder-kanban" class="w-3.5 h-3.5"></i>
                           </div>
-                        </td>
-                        <td class="py-2.5 px-3 text-right font-mono text-sm font-semibold text-emerald-700 whitespace-nowrap">${formatRupiah(d.nominal)}</td>
-                        <td class="py-2.5 px-3 text-right text-xs text-gray-500 whitespace-nowrap">${formatRupiah(targetNominal)}</td>
-                        <td class="py-2.5 pl-3 pr-6 text-right">
-                          <span class="inline-block text-xs font-bold px-2 py-0.5 rounded ${capColor}">${capKomponen}%</span>
-                        </td>
-                      </tr>`;
+                          <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2">
+                              <span class="text-[10px] font-mono font-bold text-blue-700 bg-white px-1.5 py-0.5 rounded">${progKode}</span>
+                              <span class="text-xs font-bold text-blue-900 truncate">${progName}</span>
+                            </div>
+                          </div>
+                          <span class="text-sm font-bold text-blue-800 whitespace-nowrap">${formatRupiah(progTotal)}</span>
+                          <span class="text-[10px] text-blue-700 w-12 text-right">${progPct}%</span>
+                        </div>
+                        <div class="pl-3">${subBlocksHtml}</div>
+                      </div>`;
                   }).join('');
 
                   return `
-                    <tr class="hover:bg-blue-50/40 transition"
+                    <tr class="hover:bg-emerald-50/40 transition"
                         data-realisasi-id="${r.id}"
                         onclick="toggleDetail(${r.id})">
                       <td class="px-5 py-4 text-center">
-                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 text-gray-600 text-xs font-bold">
-                          ${i + 1}
-                        </span>
+                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 text-gray-600 text-xs font-bold">${i + 1}</span>
                       </td>
                       <td class="px-5 py-4 text-center">
                         <div class="flex items-center justify-center gap-2">
@@ -167,17 +260,17 @@
                           <i data-lucide="chevron-down" class="chevron-icon w-3.5 h-3.5 text-gray-400 flex-shrink-0 ${isOpen ? 'rotate' : ''}"></i>
                         </div>
                       </td>
-                      <td class="px-5 py-4 text-center text-gray-600 text-xs">
-                        ${formatTanggal(r.tanggal)}
-                      </td>
+                      <td class="px-5 py-4 text-center text-gray-600 text-xs whitespace-nowrap">${formatTanggal(r.tanggal)}</td>
                       <td class="px-5 py-4 text-center">
                         <span class="inline-flex items-center gap-1.5 text-xs bg-purple-50 text-purple-700 font-semibold px-3 py-1.5 rounded-full">
-                          <i data-lucide="layers" class="w-3 h-3"></i>
-                          ${detailCount} komponen
+                          <i data-lucide="layers" class="w-3 h-3"></i> ${detailCount} item
                         </span>
                       </td>
                       <td class="px-5 py-4 text-center">
-                        <span class="font-mono font-bold text-emerald-700 whitespace-nowrap">${formatRupiah(totalR)}</span>
+                        <div>
+                          <span class="font-mono font-bold text-emerald-700 whitespace-nowrap">${formatRupiah(totalR)}</span>
+                          <p class="text-[10px] text-gray-500 mt-0.5">Capaian: ${cap}%</p>
+                        </div>
                       </td>
                       <td class="px-5 py-4" onclick="event.stopPropagation()">
                         <div class="flex items-center justify-center gap-1">
@@ -197,53 +290,30 @@
                       </td>
                     </tr>
 
-                    <!-- Expand Detail -->
-                    <tr data-expand-for="${r.id}" class="${isOpen ? '' : 'hidden'} bg-gradient-to-r from-emerald-50/60 to-blue-50/40">
+                    <tr data-expand-for="${r.id}" class="${isOpen ? '' : 'hidden'} bg-gradient-to-r from-emerald-50/40 to-blue-50/30">
                       <td colspan="6" class="p-0">
                         <div class="detail-expand ${isOpen ? 'open' : ''}">
                           <div class="px-6 py-4">
-                            <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center justify-between mb-4">
                               <div class="flex items-center gap-2">
                                 <i data-lucide="layers" class="w-4 h-4 text-emerald-700"></i>
                                 <span class="text-xs font-bold text-emerald-900 uppercase tracking-wide">
                                   Rincian Realisasi - ${monthName(r.bulan)} ${r.tahun}
                                 </span>
                               </div>
-                              <span class="text-xs text-gray-500">${detailCount} komponen</span>
+                              <span class="text-xs text-gray-500">Total: ${formatRupiah(totalR)}</span>
                             </div>
 
-                            <div class="bg-white rounded-lg border border-emerald-100 overflow-hidden">
-                              <table class="w-full text-sm">
-                                <thead class="bg-emerald-50/70">
-                                  <tr>
-                                    <th class="text-left pl-8 pr-3 py-2 text-[10px] uppercase text-emerald-700 font-bold tracking-wider">Komponen</th>
-                                    <th class="text-right px-3 py-2 text-[10px] uppercase text-emerald-700 font-bold tracking-wider">Realisasi</th>
-                                    <th class="text-right px-3 py-2 text-[10px] uppercase text-emerald-700 font-bold tracking-wider">Target</th>
-                                    <th class="text-right pr-6 pl-3 py-2 text-[10px] uppercase text-emerald-700 font-bold tracking-wider w-24">Capaian</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  ${detailRowsHtml || '<tr><td colspan="4" class="text-center py-4 text-gray-400 text-xs">Tidak ada komponen</td></tr>'}
-                                </tbody>
-                                <tfoot class="bg-emerald-50 border-t-2 border-emerald-200">
-                                  <tr>
-                                    <td class="pl-8 pr-3 py-3 font-bold text-emerald-900 text-sm">TOTAL</td>
-                                    <td class="px-3 py-3 text-right font-mono font-bold text-emerald-800 text-sm whitespace-nowrap">${formatRupiah(totalR)}</td>
-                                    <td class="px-3 py-3 text-right font-mono text-gray-500 text-sm whitespace-nowrap">${formatRupiah(totalTargetBulan)}</td>
-                                    <td class="pr-6 pl-3 py-3 text-right text-xs font-bold text-emerald-700">${cap}%</td>
-                                  </tr>
-                                </tfoot>
-                              </table>
-                            </div>
+                            ${programBlocksHtml || '<p class="text-sm text-gray-400 text-center py-4">Tidak ada komponen</p>'}
 
                             ${r.keterangan ? `
-                              <div class="mt-3 text-xs text-gray-500 flex items-start gap-2">
+                              <div class="mt-4 bg-blue-50 border-l-4 border-blue-500 p-3 rounded-r-lg text-xs text-blue-900 flex items-start gap-2">
                                 <i data-lucide="info" class="w-3.5 h-3.5 flex-shrink-0 mt-0.5"></i>
                                 <span><b>Keterangan:</b> ${r.keterangan}</span>
                               </div>
                             ` : ''}
 
-                            <div class="flex justify-end gap-2 mt-3">
+                            <div class="flex justify-end gap-2 mt-4">
                               <button onclick="event.stopPropagation(); openForm(${r.id})"
                                 class="text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5">
                                 <i data-lucide="edit-3" class="w-3 h-3"></i> Edit Realisasi
@@ -262,19 +332,22 @@
           </table>
         </div>
       </div>
+
+      <div class="mt-5 bg-emerald-50 border-l-4 border-emerald-700 p-4 rounded-r-lg text-sm text-emerald-900 flex items-start gap-3">
+        <i data-lucide="info" class="w-5 h-5 flex-shrink-0 mt-0.5"></i>
+        <span>Klik baris untuk melihat rincian realisasi per <b>Program → Sub-Kegiatan → Komponen Belanja</b> beserta capaian masing-masing.</span>
+      </div>
     `;
 
     renderLayout('realisasi.html', main);
   }
 
-  // ============ GANTI TAHUN ============
   function changeTahun(y) {
     filterTahun = Number(y);
     openDetails.clear();
     render();
   }
 
-  // ============ TOGGLE DETAIL ============
   function toggleDetail(realisasiId) {
     const row = document.querySelector(`tr[data-realisasi-id="${realisasiId}"]`);
     const expandRow = document.querySelector(`tr[data-expand-for="${realisasiId}"]`);
@@ -288,11 +361,9 @@
       openDetails.delete(realisasiId);
       container.classList.remove('open');
       if (chevron) chevron.classList.remove('rotate');
-      row.classList.remove('bg-blue-50/60');
+      row.classList.remove('bg-emerald-50/60');
       setTimeout(() => {
-        if (!openDetails.has(realisasiId)) {
-          expandRow.classList.add('hidden');
-        }
+        if (!openDetails.has(realisasiId)) expandRow.classList.add('hidden');
       }, 350);
     } else {
       openDetails.add(realisasiId);
@@ -300,22 +371,21 @@
       void container.offsetHeight;
       container.classList.add('open');
       if (chevron) chevron.classList.add('rotate');
-      row.classList.add('bg-blue-50/60');
+      row.classList.add('bg-emerald-50/60');
     }
   }
 
   // ============================================================
-  // FORM OPEN (CREATE/EDIT)
+  // FORM OPEN
   // ============================================================
   function openForm(id) {
     const r = id ? DB.find('realisasis', x => x.id === id) : null;
     const db = DB.load();
-    const kategoriList = db.master.kategoriTarget || [];
 
-    // Filter target yang belum punya realisasi (untuk mode create)
+    // Target yang belum punya realisasi (untuk mode create)
     const allTargets = DB.filter('targets', t => t.tahun === filterTahun);
     const availableTargets = r
-      ? allTargets  // Edit mode: tampilkan semua
+      ? allTargets
       : allTargets.filter(t => !DB.filter('realisasis', rr => rr.targetId === t.id).length);
 
     if (availableTargets.length === 0 && !r) {
@@ -328,7 +398,6 @@
       return;
     }
 
-    // Build form HTML
     const targetOptions = availableTargets.map(t => `
       <option value="${t.id}" ${r?.targetId === t.id ? 'selected' : ''}>
         ${monthName(t.bulan)} ${t.tahun} - Target ${formatRupiah(getTotalTargetBulanan(t))}
@@ -339,70 +408,59 @@
       ? DB.find('targets', t => t.id === r.targetId)
       : availableTargets[0];
     const initialDetails = initialTarget ? (initialTarget.details || []) : [];
-    const existingRealisasiDetails = r?.details || [];
+    const existingDetails = r?.details || [];
 
-    // Build komponen rows (readonly - dari target)
+    // Build row dari target - pre-fill realisasi kalau ada
     const komponenRows = initialDetails.map((td, idx) => {
-      const kat = kategoriList.find(k => k.id === td.kategoriId);
-      const targetNominal = getKomponenNominal(td);
-      const existing = existingRealisasiDetails.find(rd => rd.kategoriId === td.kategoriId);
-      const realisasiNominal = existing ? existing.nominal : 0;
-
-      return `
-        <div class="form-komponen-row flex items-center gap-3 py-2 border-b border-gray-100 last:border-0" data-kategori-id="${td.kategoriId}">
-          <div class="w-7 h-7 rounded-md bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
-            ${kat ? (kat.kode || kat.nama.substring(0, 3)).substring(0, 3) : '???'}
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium text-gray-800 truncate">${kat ? kat.nama : 'Tidak diketahui'}</p>
-            <p class="text-[10px] text-gray-400">Target: ${formatRupiah(targetNominal)}</p>
-          </div>
-          <div class="relative w-44 flex-shrink-0">
-            <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-semibold pointer-events-none">Rp</span>
-            <input type="text" inputmode="numeric" autocomplete="off"
-              class="form-realisasi-nominal input-nominal w-full pl-8 pr-2 py-2 border border-gray-200 rounded-lg text-sm text-right font-mono focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-              value="${formatNumberInput(realisasiNominal)}" placeholder="0"
-              data-kategori-id="${td.kategoriId}"
-              data-target-nominal="${targetNominal}" />
-          </div>
-        </div>`;
+      const existing = existingDetails.find(rd =>
+        rd.programId === td.programId &&
+        rd.subKegiatanId === td.subKegiatanId &&
+        rd.komponenId === td.komponenId
+      );
+      return RealisasiRowHTML(td, existing ? existing.nominal : 0, idx, db);
     }).join('');
 
     Swal.fire({
       title: r ? 'Edit Realisasi' : 'Input Realisasi',
-      width: 780,
+      width: 920,
       html: `
         <div class="text-left space-y-4 text-sm mt-2">
-          <div>
-            <label class="block font-semibold text-gray-700 mb-1.5 text-xs uppercase tracking-wide">Target Bulan</label>
-            <select id="f-target" class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white" ${r ? 'disabled' : ''}>
-              ${targetOptions}
-            </select>
-          </div>
-
-          <div>
-            <label class="block font-semibold text-gray-700 mb-1.5 text-xs uppercase tracking-wide">Tanggal Realisasi</label>
-            <input id="f-tanggal" type="date"
-              class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-              value="${r ? r.tanggal : new Date().toISOString().substring(0, 10)}" />
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block font-semibold text-gray-700 mb-1.5 text-xs uppercase tracking-wide">Target Bulan</label>
+              <select id="f-target"
+                class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 bg-white"
+                ${r ? 'disabled' : ''}>
+                ${targetOptions}
+              </select>
+            </div>
+            <div>
+              <label class="block font-semibold text-gray-700 mb-1.5 text-xs uppercase tracking-wide">Tanggal Realisasi</label>
+              <input id="f-tanggal" type="date"
+                class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500"
+                value="${r ? r.tanggal : new Date().toISOString().substring(0,10)}" />
+            </div>
           </div>
 
           <div>
             <div class="flex items-center justify-between mb-2">
-              <label class="block font-semibold text-gray-700 text-xs uppercase tracking-wide">Realisasi per Komponen</label>
+              <label class="block font-semibold text-gray-700 text-xs uppercase tracking-wide">
+                Realisasi per Komponen Belanja
+                <span class="text-gray-400 normal-case font-normal">(${initialDetails.length} item)</span>
+              </label>
               <button type="button" onclick="fillAllFromTarget()"
-                class="text-[11px] bg-gray-100 hover:bg-blue-100 text-gray-600 hover:text-blue-700 font-semibold px-2.5 py-1 rounded-md transition flex items-center gap-1">
+                class="text-[11px] bg-gray-100 hover:bg-emerald-100 text-gray-600 hover:text-emerald-700 font-semibold px-2.5 py-1 rounded-md transition flex items-center gap-1">
                 <i data-lucide="wand-2" class="w-3 h-3"></i> Isi sesuai target
               </button>
             </div>
-            <div id="form-komponen-container" class="bg-white border border-gray-200 rounded-lg p-3 max-h-80 overflow-y-auto">
+            <div id="form-komponen-container" class="space-y-2 max-h-96 overflow-y-auto pr-1">
               ${komponenRows || '<p class="text-center text-gray-400 text-xs py-4">Tidak ada komponen di target ini</p>'}
             </div>
           </div>
 
           <div class="bg-gradient-to-r from-emerald-50 to-blue-50 border border-emerald-100 rounded-lg p-3 flex items-center justify-between">
             <span class="text-sm font-semibold text-emerald-900 flex items-center gap-2">
-              <i class="w-4 h-4"></i> Total Realisasi
+              <i data-lucide="sigma" class="w-4 h-4"></i> Total Realisasi
             </span>
             <div class="text-right">
               <p id="f-total" class="text-lg font-bold text-emerald-800 font-mono">Rp 0</p>
@@ -413,7 +471,7 @@
           <div>
             <label class="block font-semibold text-gray-700 mb-1.5 text-xs uppercase tracking-wide">Keterangan (opsional)</label>
             <textarea id="f-ket" rows="2"
-              class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+              class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500"
               placeholder="Catatan tambahan...">${r ? (r.keterangan || '') : ''}</textarea>
           </div>
         </div>
@@ -422,26 +480,16 @@
       confirmButtonText: r ? 'Update' : 'Simpan',
       cancelButtonText: 'Batal',
       customClass: {
-        confirmButton: 'bg-blue-700 hover:bg-blue-800 text-white font-medium px-5 py-2.5 rounded-lg mx-1 transition',
+        confirmButton: 'bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-5 py-2.5 rounded-lg mx-1 transition',
         cancelButton: 'bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2.5 rounded-lg mx-1 transition',
         popup: 'rounded-2xl'
       },
       buttonsStyling: false,
       didOpen: () => {
         if (window.lucide) lucide.createIcons();
-
-        // Attach number format ke semua input
-        document.querySelectorAll('.form-realisasi-nominal').forEach(inp => {
-          attachNumberFormat(inp);
-          inp.addEventListener('input', updateTotalForm);
-        });
-
-        // Kalau create mode, attach listener ke dropdown target
-        const targetSelect = document.getElementById('f-target');
-        if (targetSelect && !r) {
-          targetSelect.addEventListener('change', rebuildKomponenRows);
-        }
-
+        attachAllRealisasiEvents();
+        const tSel = document.getElementById('f-target');
+        if (tSel && !r) tSel.addEventListener('change', rebuildFromTarget);
         updateTotalForm();
       },
       preConfirm: () => {
@@ -454,14 +502,16 @@
           return false;
         }
 
-        // Kumpulkan detail dari input
         const details = [];
-        document.querySelectorAll('.form-komponen-row').forEach(row => {
-          const inp = row.querySelector('.form-realisasi-nominal');
-          const kategoriId = Number(inp.dataset.kategoriId);
+        document.querySelectorAll('#form-komponen-container .realisasi-row').forEach(row => {
+          const inp = row.querySelector('.realisasi-nominal');
+          const programId = Number(row.dataset.programId);
+          const subKegiatanId = Number(row.dataset.subKegiatanId) || null;
+          const komponenId = Number(row.dataset.komponenId);
           const nominal = parseNumberInput(inp.value);
+
           if (nominal > 0) {
-            details.push({ kategoriId, nominal });
+            details.push({ programId, subKegiatanId, komponenId, nominal });
           }
         });
 
@@ -480,9 +530,8 @@
       const totalNominal = data.details.reduce((s, d) => s + d.nominal, 0);
 
       if (r) {
-        // === UPDATE ===
         const idx = db.realisasis.findIndex(x => x.id === id);
-        const before = formatRupiah(hitungTotalRealisasi(db.realisasis[idx]));
+        const before = formatRupiah(getRealisasiTotal(db.realisasis[idx]));
         db.realisasis[idx] = {
           ...db.realisasis[idx],
           ...data,
@@ -492,29 +541,23 @@
         };
         DB.save(db);
         recordAudit({
-          action: 'UPDATE',
-          module: 'Realisasi',
+          action: 'UPDATE', module: 'Realisasi',
           recordId: `RLS-${String(id).padStart(5, '0')}`,
-          before,
-          after: formatRupiah(totalNominal)
+          before, after: formatRupiah(totalNominal)
         });
         toastSuccess('Realisasi berhasil diupdate');
       } else {
-        // === CREATE ===
         const newId = db.meta.nextRealisasiId || (Math.max(0, ...db.realisasis.map(x => x.id)) + 1);
         db.meta.nextRealisasiId = newId + 1;
         db.realisasis.push({
-          id: newId,
-          ...data,
+          id: newId, ...data,
           nominal: totalNominal,
-          bulan: target.bulan,
-          tahun: target.tahun,
+          bulan: target.bulan, tahun: target.tahun,
           userId: AUTH.currentUser().id
         });
         DB.save(db);
         recordAudit({
-          action: 'CREATE',
-          module: 'Realisasi',
+          action: 'CREATE', module: 'Realisasi',
           recordId: `RLS-${String(newId).padStart(5, '0')}`,
           after: formatRupiah(totalNominal)
         });
@@ -525,67 +568,117 @@
     });
   }
 
-  // ============ REBUILD KOMPONEN ROWS (saat target diganti) ============
-  function rebuildKomponenRows() {
+  // ============================================================
+  // ROW HTML untuk realisasi
+  // ============================================================
+  function RealisasiRowHTML(targetDetail, realisasiNominal, idx, db) {
+    const prog = getProgramById(targetDetail.programId);
+    const sub = getSubKegiatanById(targetDetail.subKegiatanId);
+    const kom = getKomponenBelanjaById(targetDetail.komponenId);
+    const targetNominal = getKomponenNominal(targetDetail);
+
+    return `
+      <div class="realisasi-row border border-gray-200 rounded-lg p-3 bg-white"
+           data-idx="${idx}"
+           data-program-id="${targetDetail.programId}"
+           data-sub-kegiatan-id="${targetDetail.subKegiatanId || ''}"
+           data-komponen-id="${targetDetail.komponenId}"
+           data-target-nominal="${targetNominal}">
+        <!-- Info hirarki -->
+        <div class="grid grid-cols-3 gap-2 mb-2">
+          <div class="flex items-center gap-2 bg-blue-50 rounded-md px-2 py-1.5">
+            <div class="w-5 h-5 rounded bg-blue-700 text-white flex items-center justify-center text-[8px] flex-shrink-0">
+              <i data-lucide="folder" class="w-2.5 h-2.5"></i>
+            </div>
+            <div class="min-w-0">
+              <p class="text-[9px] font-mono text-blue-600 truncate">${prog ? prog.kode : '-'}</p>
+              <p class="text-[10px] text-gray-700 truncate">${prog ? prog.nama : 'Tidak diketahui'}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 bg-indigo-50 rounded-md px-2 py-1.5">
+            <div class="w-5 h-5 rounded bg-indigo-700 text-white flex items-center justify-center text-[8px] flex-shrink-0">
+              <i data-lucide="git-branch" class="w-2.5 h-2.5"></i>
+            </div>
+            <div class="min-w-0">
+              <p class="text-[9px] font-mono text-indigo-600 truncate">${sub ? sub.kode : '-'}</p>
+              <p class="text-[10px] text-gray-700 truncate">${sub ? sub.nama : 'Tanpa Sub'}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 bg-emerald-50 rounded-md px-2 py-1.5">
+            <div class="w-5 h-5 rounded bg-emerald-700 text-white flex items-center justify-center text-[8px] flex-shrink-0">
+              <i data-lucide="receipt" class="w-2.5 h-2.5"></i>
+            </div>
+            <div class="min-w-0">
+              <p class="text-[9px] font-mono text-emerald-600 truncate">${kom ? kom.kode : '-'}</p>
+              <p class="text-[10px] text-gray-700 truncate">${kom ? kom.nama : 'Tidak diketahui'}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Input nominal -->
+        <div class="grid grid-cols-[1fr_200px] gap-2 items-center">
+          <div class="text-[10px] text-gray-500">
+            Target komponen: <b class="font-mono text-gray-700">${formatRupiah(targetNominal)}</b>
+          </div>
+          <div class="relative">
+            <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] font-semibold pointer-events-none">Rp</span>
+            <input type="text" inputmode="numeric" autocomplete="off"
+              class="realisasi-nominal input-nominal w-full pl-7 pr-2 py-2 border border-gray-200 rounded-lg text-xs text-right font-mono focus:ring-2 focus:ring-emerald-500"
+              value="${formatNumberInput(realisasiNominal)}" placeholder="0" />
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // ============================================================
+  // REBUILD FROM TARGET (ganti target di dropdown)
+  // ============================================================
+  function rebuildFromTarget() {
     const targetId = Number(document.getElementById('f-target').value);
     const target = DB.find('targets', t => t.id === targetId);
-    const db = DB.load();
-    const kategoriList = db.master.kategoriTarget || [];
-
     if (!target) return;
 
+    const db = DB.load();
     const container = document.getElementById('form-komponen-container');
     if (!container) return;
 
-    const html = (target.details || []).map(td => {
-      const kat = kategoriList.find(k => k.id === td.kategoriId);
-      const targetNominal = getKomponenNominal(td);
-
-      return `
-        <div class="form-komponen-row flex items-center gap-3 py-2 border-b border-gray-100 last:border-0" data-kategori-id="${td.kategoriId}">
-          <div class="w-7 h-7 rounded-md bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
-            ${kat ? (kat.kode || kat.nama.substring(0, 3)).substring(0, 3) : '???'}
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium text-gray-800 truncate">${kat ? kat.nama : 'Tidak diketahui'}</p>
-            <p class="text-[10px] text-gray-400">Target: ${formatRupiah(targetNominal)}</p>
-          </div>
-          <div class="relative w-44 flex-shrink-0">
-            <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-semibold pointer-events-none">Rp</span>
-            <input type="text" inputmode="numeric" autocomplete="off"
-              class="form-realisasi-nominal input-nominal w-full pl-8 pr-2 py-2 border border-gray-200 rounded-lg text-sm text-right font-mono focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-              value="" placeholder="0"
-              data-kategori-id="${td.kategoriId}"
-              data-target-nominal="${targetNominal}" />
-          </div>
-        </div>`;
-    }).join('');
-
-    container.innerHTML = html || '<p class="text-center text-gray-400 text-xs py-4">Tidak ada komponen di target ini</p>';
-
-    // Re-attach format & listener
-    container.querySelectorAll('.form-realisasi-nominal').forEach(inp => {
-      attachNumberFormat(inp);
-      inp.addEventListener('input', updateTotalForm);
-    });
+    const html = (target.details || []).map((td, idx) =>
+      RealisasiRowHTML(td, 0, idx, db)
+    ).join('');
+    container.innerHTML = html || '<p class="text-center text-gray-400 text-xs py-4">Tidak ada komponen</p>';
 
     if (window.lucide) lucide.createIcons();
+    attachAllRealisasiEvents();
     updateTotalForm();
   }
 
-  // ============ ISI SEMUA INPUT = TARGET ============
+  // ============================================================
+  // FILL ALL FROM TARGET
+  // ============================================================
   function fillAllFromTarget() {
-    document.querySelectorAll('.form-komponen-row').forEach(row => {
-      const inp = row.querySelector('.form-realisasi-nominal');
+    document.querySelectorAll('.realisasi-row').forEach(row => {
+      const inp = row.querySelector('.realisasi-nominal');
       if (!inp) return;
-      const targetNominal = Number(inp.dataset.targetNominal) || 0;
+      const targetNominal = Number(row.dataset.targetNominal) || 0;
       inp.value = formatNumberInput(targetNominal);
     });
     updateTotalForm();
     toastInfo('Semua input diisi sesuai target');
   }
 
-  // ============ UPDATE TOTAL FORM ============
+  // ============================================================
+  // ATTACH EVENTS & TOTAL
+  // ============================================================
+  function attachAllRealisasiEvents() {
+    document.querySelectorAll('#form-komponen-container .realisasi-nominal').forEach(inp => {
+      attachNumberFormat(inp);
+      if (!inp.dataset.bound) {
+        inp.addEventListener('input', updateTotalForm);
+        inp.dataset.bound = '1';
+      }
+    });
+  }
+
   function updateTotalForm() {
     const totalEl = document.getElementById('f-total');
     const capEl = document.getElementById('f-capaian');
@@ -593,11 +686,11 @@
 
     let total = 0;
     let totalTarget = 0;
-    document.querySelectorAll('.form-komponen-row').forEach(row => {
-      const inp = row.querySelector('.form-realisasi-nominal');
+    document.querySelectorAll('.realisasi-row').forEach(row => {
+      const inp = row.querySelector('.realisasi-nominal');
       if (!inp) return;
       total += parseNumberInput(inp.value);
-      totalTarget += Number(inp.dataset.targetNominal) || 0;
+      totalTarget += Number(row.dataset.targetNominal) || 0;
     });
 
     totalEl.textContent = formatRupiah(total);
@@ -607,16 +700,18 @@
     }
   }
 
-  // ============ DELETE ============
+  // ============================================================
+  // DELETE
+  // ============================================================
   function deleteItem(id) {
     const r = DB.find('realisasis', x => x.id === id);
-    const total = hitungTotalRealisasi(r);
+    const total = getRealisasiTotal(r);
 
     swalTheme.fire({
       title: 'Hapus Realisasi?',
       html: `<div class="text-sm text-gray-600 space-y-2">
         <p>Realisasi <b>${monthName(r.bulan)} ${r.tahun}</b> akan dihapus permanen.</p>
-        <div class="bg-gray-50 rounded-lg p-3 text-xs">
+        <div class="bg-gray-50 rounded-lg p-3 text-xs space-y-1">
           <div class="flex justify-between"><span>Tanggal:</span><b>${formatTanggal(r.tanggal)}</b></div>
           <div class="flex justify-between"><span>Total:</span><b class="text-emerald-700">${formatRupiah(total)}</b></div>
           <div class="flex justify-between"><span>Komponen:</span><b>${(r.details || []).length} item</b></div>
@@ -628,14 +723,11 @@
       cancelButtonText: 'Batal'
     }).then(res => {
       if (!res.isConfirmed) return;
-
       DB.remove('realisasis', id);
       recordAudit({
-        action: 'DELETE',
-        module: 'Realisasi',
+        action: 'DELETE', module: 'Realisasi',
         recordId: `RLS-${String(id).padStart(5, '0')}`,
-        before: formatRupiah(total),
-        after: '-'
+        before: formatRupiah(total), after: '-'
       });
       openDetails.delete(id);
       toastSuccess('Realisasi berhasil dihapus');
@@ -643,7 +735,6 @@
     });
   }
 
-  // ============ INIT ============
   render();
 </script>
 </body>

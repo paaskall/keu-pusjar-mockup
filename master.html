@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Master Data</title>
+<title>SIKAP - Master Data</title>
 <link rel="icon" href="assets/logo-lanri.png" type="image/x-icon">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/lucide@latest"></script>
@@ -21,145 +21,456 @@
   AUTH.requireRole(['admin']);
 
   const params = new URLSearchParams(window.location.search);
-  const tabs = [
-    { key: 'jenisPengadaan', label: 'Jenis Pengadaan', icon: 'tags' },
-    { key: 'tahapan', label: 'Tahapan', icon: 'list-ordered' },
-    { key: 'status', label: 'Status', icon: 'badge-check' },
-    { key: 'unit', label: 'Unit', icon: 'building-2' },
-    { key: 'kategoriKendala', label: 'Kategori Kendala', icon: 'folder-tree' },
-    { key: 'kategoriTarget', label: 'Kategori Target', icon: 'layers' }
-  ];
-  let activeTab = params.get('tab') || 'jenisPengadaan';
-  if (!tabs.find(t => t.key === activeTab)) activeTab = 'jenisPengadaan';
 
+  // ============================================================
+  // KONFIGURASI TAB MASTER
+  // ============================================================
+  const TABS = [
+    {
+      key: 'program',
+      label: 'Program',
+      icon: 'folder-kanban',
+      fields: [
+        { key: 'kode', label: 'Kode', type: 'text', required: true, placeholder: '7916.FAC.001', mono: true },
+        { key: 'nama', label: 'Nama Program', type: 'text', required: true, placeholder: 'Pelatihan Struktural Kepemimpinan' }
+      ]
+    },
+    {
+      key: 'subKegiatan',
+      label: 'Sub-Kegiatan',
+      icon: 'git-branch',
+      fields: [
+        { key: 'programId', label: 'Program', type: 'select', required: true, source: 'program', sourceLabel: 'nama', sourceValue: 'id', sourcePrefix: 'kode' },
+        { key: 'kode', label: 'Kode', type: 'text', required: true, placeholder: '052', mono: true },
+        { key: 'nama', label: 'Nama Sub-Kegiatan', type: 'text', required: true, placeholder: 'Pelaksanaan Pelatihan Kepemimpinan Nasional Tk. II' }
+      ]
+    },
+    {
+      key: 'komponenBelanja',
+      label: 'Komponen Belanja',
+      icon: 'receipt',
+      fields: [
+        { key: 'kode', label: 'Kode', type: 'text', required: true, placeholder: 'B.HONOR', mono: true },
+        { key: 'nama', label: 'Nama Komponen', type: 'text', required: true, placeholder: 'Belanja Honor Output Kegiatan' }
+      ]
+    },
+    {
+      key: 'unit',
+      label: 'Unit',
+      icon: 'building-2',
+      fields: [
+        { key: 'nama', label: 'Nama Unit', type: 'text', required: true, placeholder: 'Bagian Keuangan' }
+      ]
+    },
+    {
+      key: 'jenisPengadaan',
+      label: 'Jenis Pengadaan',
+      icon: 'tags',
+      fields: [
+        { key: 'nama', label: 'Nama Jenis', type: 'text', required: true, placeholder: 'Kontrak' }
+      ]
+    },
+    {
+      key: 'tahapan',
+      label: 'Tahapan',
+      icon: 'list-ordered',
+      fields: [
+        { key: 'nama', label: 'Nama Tahapan', type: 'text', required: true, placeholder: 'Tender' }
+      ]
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      icon: 'badge-check',
+      fields: [
+        { key: 'nama', label: 'Nama Status', type: 'text', required: true, placeholder: 'Proses' }
+      ]
+    },
+    {
+      key: 'kategoriKendala',
+      label: 'Kategori Kendala',
+      icon: 'alert-octagon',
+      fields: [
+        { key: 'nama', label: 'Nama Kategori', type: 'text', required: true, placeholder: 'Administrasi' }
+      ]
+    }
+  ];
+
+  let activeTab = params.get('tab') || 'program';
+  if (!TABS.find(t => t.key === activeTab)) activeTab = 'program';
+
+  // ============================================================
+  // RENDER
+  // ============================================================
   function render() {
-    const items = DB.get('master')[activeTab] || [];
-    const tabDef = tabs.find(t => t.key === activeTab);
+    const db = DB.load();
+    const items = db.master[activeTab] || [];
+    const tabDef = TABS.find(t => t.key === activeTab);
+    const isComplexTab = ['program', 'subKegiatan', 'komponenBelanja'].includes(activeTab);
 
     const main = `
+      <!-- Header -->
       <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 class="text-2xl font-bold text-gray-800">Master Data</h2>
-          <p class="text-sm text-gray-500 mt-1">Kelola data referensi sistem</p>
+          <div class="flex items-center gap-3 mb-1">
+            <div class="w-1 h-8 bg-gradient-to-b from-blue-700 to-blue-400 rounded-full"></div>
+            <h2 class="text-2xl font-bold text-gray-800">Master Data</h2>
+          </div>
+          <p class="text-sm text-gray-500 ml-4">Kelola data referensi sistem</p>
         </div>
         <button onclick="openForm()" class="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-md shadow-blue-200 flex items-center gap-2 transition">
           <i data-lucide="plus" class="w-4 h-4"></i> Tambah ${tabDef.label}
         </button>
       </div>
 
+      <!-- Card dengan Tabs -->
       <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <!-- Tab Navigation -->
         <div class="border-b border-gray-100 overflow-x-auto">
           <div class="flex">
-            ${tabs.map(t => `
-              <button onclick="switchTab('${t.key}')"
-                class="px-5 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition flex items-center gap-2
-                ${t.key === activeTab
-                  ? 'border-blue-700 text-blue-700 bg-blue-50/50'
-                  : 'border-transparent text-gray-500 hover:text-blue-700 hover:bg-blue-50/30'}">
-                <i data-lucide="${t.icon}" class="w-4 h-4"></i> ${t.label}
-              </button>`).join('')}
+            ${TABS.map(t => {
+              const isActive = t.key === activeTab;
+              const count = (db.master[t.key] || []).length;
+              return `
+                <button onclick="switchTab('${t.key}')"
+                  class="px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition flex items-center gap-2
+                  ${isActive
+                    ? 'border-blue-700 text-blue-700 bg-blue-50/50'
+                    : 'border-transparent text-gray-500 hover:text-blue-700 hover:bg-blue-50/30'}">
+                  <i data-lucide="${t.icon}" class="w-4 h-4"></i>
+                  ${t.label}
+                  <span class="text-[10px] px-1.5 py-0.5 rounded-full ${isActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'} font-bold">
+                    ${count}
+                  </span>
+                </button>`;
+            }).join('')}
           </div>
         </div>
 
-        <table class="w-full text-sm">
-          <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
-            <tr>
-              <th class="text-left px-4 py-3 font-semibold w-16">ID</th>
-              <th class="text-left px-4 py-3 font-semibold">Nama</th>
-              <th class="text-right px-4 py-3 font-semibold w-32">Aksi</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100">
-            ${items.length === 0 ? `<tr><td colspan="3" class="text-center py-8 text-gray-400">Belum ada data</td></tr>` :
-              items.map(it => `
-                <tr class="hover:bg-blue-50/40 transition">
-                  <td class="px-4 py-3 font-mono text-gray-500 text-xs">#${it.id}</td>
-                  <td class="px-4 py-3 font-medium text-gray-800">${it.nama}</td>
-                  <td class="px-4 py-3 text-right">
-                    <button onclick="editItem(${it.id})" class="text-blue-700 hover:bg-blue-100 px-2 py-1 rounded transition" title="Edit">
-                      <i data-lucide="edit-3" class="w-4 h-4"></i>
-                    </button>
-                    <button onclick="deleteItem(${it.id})" class="text-red-600 hover:bg-red-100 px-2 py-1 rounded transition ml-1" title="Hapus">
-                      <i data-lucide="trash-2" class="w-4 h-4"></i>
-                    </button>
+        <!-- Table -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+              <tr>
+                <th class="text-center px-4 py-3 font-semibold w-16">ID</th>
+                ${tabDef.fields.map(f => `
+                  <th class="text-${f.key === 'kode' || f.type === 'select' ? 'left' : 'left'} px-4 py-3 font-semibold ${f.key === 'nama' ? '' : 'w-32'}">${f.label}</th>
+                `).join('')}
+                <th class="text-center px-4 py-3 font-semibold w-32">Aksi</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              ${items.length === 0 ? `
+                <tr>
+                  <td colspan="${tabDef.fields.length + 2}" class="text-center py-12 text-gray-400">
+                    <i data-lucide="inbox" class="w-10 h-10 mx-auto mb-2 opacity-40"></i>
+                    <p class="text-sm">Belum ada data ${tabDef.label}</p>
+                    <p class="text-xs mt-1">Klik "Tambah ${tabDef.label}" untuk memulai</p>
                   </td>
-                </tr>`).join('')}
-          </tbody>
-        </table>
+                </tr>` :
+                items.map((it, idx) => `
+                  <tr class="hover:bg-blue-50/40 transition">
+                    <td class="px-4 py-3 text-center">
+                      <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-gray-100 text-gray-600 text-xs font-bold">
+                        ${it.id}
+                      </span>
+                    </td>
+                    ${tabDef.fields.map(f => {
+                      const value = it[f.key];
+
+                      // Kalau field adalah kode → tampil sebagai badge mono
+                      if (f.key === 'kode') {
+                        return `<td class="px-4 py-3">
+                          <span class="inline-block font-mono text-[11px] font-bold bg-blue-50 text-blue-700 px-2 py-1 rounded">
+                            ${value || '-'}
+                          </span>
+                        </td>`;
+                      }
+
+                      // Kalau field select (relasi)
+                      if (f.type === 'select' && f.source) {
+                        const related = (db.master[f.source] || []).find(x => x[f.sourceValue] === value);
+                        return `<td class="px-4 py-3">
+                          <div class="flex items-center gap-2">
+                            <div class="w-7 h-7 rounded-md bg-indigo-50 text-indigo-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+                              <i data-lucide="folder" class="w-3 h-3"></i>
+                            </div>
+                            <div class="min-w-0">
+                              <p class="text-xs font-medium text-gray-800 truncate">${related ? related[f.sourceLabel] : 'Tidak ditemukan'}</p>
+                              ${related && related[f.sourcePrefix] ? `<p class="text-[10px] text-gray-400 font-mono">${related[f.sourcePrefix]}</p>` : ''}
+                            </div>
+                          </div>
+                        </td>`;
+                      }
+
+                      // Field biasa
+                      return `<td class="px-4 py-3 ${f.mono ? 'font-mono text-xs' : ''}">
+                        <span class="${f.key === 'nama' ? 'font-medium text-gray-800' : 'text-gray-600'}">
+                          ${value || '-'}
+                        </span>
+                      </td>`;
+                    }).join('')}
+                    <td class="px-4 py-3">
+                      <div class="flex items-center justify-center gap-1">
+                        <button onclick="openForm(${it.id})"
+                          class="text-blue-700 hover:bg-blue-100 p-2 rounded-lg transition" title="Edit">
+                          <i data-lucide="edit-3" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="deleteItem(${it.id})"
+                          class="text-red-600 hover:bg-red-100 p-2 rounded-lg transition" title="Hapus">
+                          <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+            </tbody>
+          </table>
+        </div>
       </div>
+
+      ${isComplexTab ? `
+        <div class="mt-5 bg-blue-50 border-l-4 border-blue-700 p-4 rounded-r-lg text-sm text-blue-900 flex items-start gap-3">
+          <i data-lucide="info" class="w-5 h-5 flex-shrink-0 mt-0.5"></i>
+          <span>
+            <b>${tabDef.label}</b> digunakan saat input Target &amp; Realisasi.
+            ${activeTab === 'program' ? 'Setiap program punya kode unik.' : ''}
+            ${activeTab === 'subKegiatan' ? 'Sub-kegiatan terkait ke program - kode bisa sama antar program.' : ''}
+            ${activeTab === 'komponenBelanja' ? 'Komponen belanja adalah jenis pengeluaran (Belanja Bahan, Honor, dll).' : ''}
+          </span>
+        </div>
+      ` : ''}
     `;
 
     renderLayout('master.html', main);
   }
 
+  // ============================================================
+  // SWITCH TAB
+  // ============================================================
   function switchTab(key) {
     activeTab = key;
     window.history.replaceState({}, '', `master.html?tab=${key}`);
     render();
   }
 
+  // ============================================================
+  // BUILD FORM FIELD HTML
+  // ============================================================
+  function buildFieldHtml(field, value, db) {
+    // Select
+    if (field.type === 'select' && field.source) {
+      const options = db.master[field.source] || [];
+      return `
+        <select id="f-${field.key}" class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white">
+          <option value="">- Pilih ${field.label} -</option>
+          ${options.map(o => `
+            <option value="${o[field.sourceValue]}" ${value === o[field.sourceValue] ? 'selected' : ''}>
+              ${o[field.sourcePrefix] ? o[field.sourcePrefix] + ' - ' : ''}${o[field.sourceLabel]}
+            </option>
+          `).join('')}
+        </select>`;
+    }
+
+    // Text input biasa
+    return `
+      <input id="f-${field.key}" type="${field.type}"
+        class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 ${field.mono ? 'font-mono' : ''}"
+        value="${value !== undefined && value !== null ? value : ''}"
+        placeholder="${field.placeholder || ''}" />`;
+  }
+
+  // ============================================================
+  // FORM OPEN (CREATE / EDIT)
+  // ============================================================
   function openForm(id) {
-    const items = DB.get('master')[activeTab] || [];
+    const db = DB.load();
+    const tabDef = TABS.find(t => t.key === activeTab);
+    const items = db.master[activeTab] || [];
     const item = id ? items.find(x => x.id === id) : null;
 
     Swal.fire({
-      title: item ? 'Edit Data' : 'Tambah Data',
-      input: 'text',
-      inputLabel: 'Nama',
-      inputValue: item ? item.nama : '',
+      title: item ? `Edit ${tabDef.label}` : `Tambah ${tabDef.label}`,
+      width: 520,
+      html: `
+        <div class="text-left space-y-4 text-sm mt-2">
+          ${tabDef.fields.map(f => `
+            <div>
+              <label class="block font-semibold text-gray-700 mb-1.5 text-xs uppercase tracking-wide">
+                ${f.label} ${f.required ? '<span class="text-red-500">*</span>' : ''}
+              </label>
+              ${buildFieldHtml(f, item ? item[f.key] : '', db)}
+            </div>
+          `).join('')}
+        </div>
+      `,
       showCancelButton: true,
-      confirmButtonText: 'Simpan',
+      confirmButtonText: item ? 'Update' : 'Simpan',
       cancelButtonText: 'Batal',
       customClass: {
-        confirmButton: 'bg-blue-700 hover:bg-blue-800 text-white font-medium px-5 py-2.5 rounded-lg mx-1',
-        cancelButton: 'bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2.5 rounded-lg mx-1',
-        input: 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm'
+        confirmButton: 'bg-blue-700 hover:bg-blue-800 text-white font-medium px-5 py-2.5 rounded-lg mx-1 transition',
+        cancelButton: 'bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2.5 rounded-lg mx-1 transition',
+        popup: 'rounded-2xl'
       },
       buttonsStyling: false,
-      inputValidator: (v) => (!v || !v.trim()) && 'Nama wajib diisi'
-    }).then(r => {
-      if (!r.isConfirmed) return;
-      const nama = r.value.trim();
+      didOpen: () => {
+        if (window.lucide) lucide.createIcons();
+        const firstField = document.getElementById(`f-${tabDef.fields[0].key}`);
+        if (firstField) setTimeout(() => firstField.focus(), 100);
+      },
+      preConfirm: () => {
+        const data = {};
+        let valid = true;
+        let errMsg = '';
+
+        tabDef.fields.forEach(f => {
+          const el = document.getElementById(`f-${f.key}`);
+          let val = el.value;
+
+          // Convert type
+          if (f.type === 'select') {
+            val = val ? Number(val) : '';
+          } else {
+            val = String(val).trim();
+          }
+
+          if (f.required && (val === '' || val === null || val === undefined)) {
+            valid = false;
+            errMsg = `${f.label} wajib diisi`;
+            return;
+          }
+
+          data[f.key] = val;
+        });
+
+        if (!valid) {
+          Swal.showValidationMessage(errMsg);
+          return false;
+        }
+
+        // Validasi kode unik (khusus tab yang punya `kode`)
+        if (data.kode) {
+          const dupe = items.find(x => x.kode === data.kode && x.id !== (item ? item.id : -1));
+          if (dupe) {
+            Swal.showValidationMessage(`Kode "${data.kode}" sudah dipakai oleh "${dupe.nama}"`);
+            return false;
+          }
+        }
+
+        return data;
+      }
+    }).then(res => {
+      if (!res.isConfirmed) return;
+      const data = res.value;
       const db = DB.load();
-      const arr = db.master[activeTab];
 
       if (item) {
-        const idx = arr.findIndex(x => x.id === id);
-        const before = arr[idx].nama;
-        arr[idx].nama = nama;
+        // === UPDATE ===
+        const idx = db.master[activeTab].findIndex(x => x.id === id);
+        const before = db.master[activeTab][idx].nama;
+        db.master[activeTab][idx] = { ...db.master[activeTab][idx], ...data };
         DB.save(db);
-        recordAudit({ action: 'UPDATE', module: 'Master Data', recordId: `MST-${activeTab}-${id}`, before, after: nama });
-        toastSuccess('Data berhasil diupdate');
+        recordAudit({
+          action: 'UPDATE',
+          module: 'Master Data',
+          recordId: `MST-${activeTab}-${id}`,
+          before,
+          after: data.nama + (data.kode ? ` (${data.kode})` : '')
+        });
+        toastSuccess(`${tabDef.label} berhasil diupdate`);
       } else {
-        const maxId = arr.reduce((m, x) => Math.max(m, x.id), 0);
-        arr.push({ id: maxId + 1, nama });
+        // === CREATE ===
+        const maxId = (db.master[activeTab] || []).reduce((m, x) => Math.max(m, x.id || 0), 0);
+        const newItem = { id: maxId + 1, ...data };
+        if (!db.master[activeTab]) db.master[activeTab] = [];
+        db.master[activeTab].push(newItem);
         DB.save(db);
-        recordAudit({ action: 'CREATE', module: 'Master Data', recordId: `MST-${activeTab}-${maxId + 1}`, after: nama });
-        toastSuccess('Data berhasil ditambahkan');
+        recordAudit({
+          action: 'CREATE',
+          module: 'Master Data',
+          recordId: `MST-${activeTab}-${maxId + 1}`,
+          after: data.nama + (data.kode ? ` (${data.kode})` : '')
+        });
+        toastSuccess(`${tabDef.label} berhasil ditambahkan`);
       }
       render();
     });
   }
 
-  function editItem(id) { openForm(id); }
-
+  // ============================================================
+  // DELETE
+  // ============================================================
   function deleteItem(id) {
-    const item = DB.get('master')[activeTab].find(x => x.id === id);
-    confirmAction(
-      'Hapus data ini?',
-      `"${item.nama}" akan dihapus secara permanen.`,
-      () => {
-        const db = DB.load();
-        db.master[activeTab] = db.master[activeTab].filter(x => x.id !== id);
-        DB.save(db);
-        recordAudit({ action: 'DELETE', module: 'Master Data', recordId: `MST-${activeTab}-${id}`, before: item.nama, after: '-' });
-        toastSuccess('Data berhasil dihapus');
-        render();
-      },
-      { icon: 'warning', confirmText: 'Ya, Hapus' }
-    );
+    const db = DB.load();
+    const tabDef = TABS.find(t => t.key === activeTab);
+    const item = (db.master[activeTab] || []).find(x => x.id === id);
+    if (!item) return;
+
+    // Cek referensi - apakah item ini dipakai di target/realisasi
+    let warnings = [];
+    if (activeTab === 'program') {
+      const usedInSub = (db.master.subKegiatan || []).filter(s => s.programId === id);
+      if (usedInSub.length > 0) warnings.push(`${usedInSub.length} sub-kegiatan terkait`);
+    }
+    if (activeTab === 'subKegiatan') {
+      const usedInTarget = (db.targets || []).some(t =>
+        (t.details || []).some(d => d.subKegiatanId === id)
+      );
+      if (usedInTarget) warnings.push('sudah dipakai di data target');
+    }
+    if (activeTab === 'komponenBelanja') {
+      const usedInTarget = (db.targets || []).some(t =>
+        (t.details || []).some(d => d.komponenId === id)
+      );
+      if (usedInTarget) warnings.push('sudah dipakai di data target');
+    }
+
+    swalTheme.fire({
+      title: `Hapus ${tabDef.label}?`,
+      html: `
+        <div class="text-sm text-gray-600 space-y-2">
+          <p><b>${item.nama}</b>${item.kode ? ` (${item.kode})` : ''} akan dihapus permanen.</p>
+          ${warnings.length > 0 ? `
+            <div class="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-left">
+              <p class="font-bold text-red-700 mb-1">⚠ Perhatian</p>
+              <ul class="list-disc list-inside text-red-600 space-y-0.5">
+                ${warnings.map(w => `<li>Item ini ${w}</li>`).join('')}
+              </ul>
+            </div>
+          ` : ''}
+        </div>
+      `,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Ya, Hapus',
+      cancelButtonText: 'Batal'
+    }).then(r => {
+      if (!r.isConfirmed) return;
+
+      const db = DB.load();
+      db.master[activeTab] = db.master[activeTab].filter(x => x.id !== id);
+
+      // Cascade: hapus subKegiatan kalau program dihapus
+      if (activeTab === 'program') {
+        db.master.subKegiatan = (db.master.subKegiatan || []).filter(s => s.programId !== id);
+      }
+
+      DB.save(db);
+      recordAudit({
+        action: 'DELETE',
+        module: 'Master Data',
+        recordId: `MST-${activeTab}-${id}`,
+        before: item.nama + (item.kode ? ` (${item.kode})` : ''),
+        after: '-'
+      });
+      toastSuccess(`${tabDef.label} berhasil dihapus`);
+      render();
+    });
   }
 
+  // ============================================================
+  // INIT
+  // ============================================================
   render();
 </script>
 </body>

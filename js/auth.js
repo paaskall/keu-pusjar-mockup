@@ -9,7 +9,6 @@ const SESSION_KEY_AUTH = 'keu_pusjar_session';
 // AUTH OBJECT
 // ============================================================
 const AUTH = {
-  // ============ LOGIN MANUAL ============
   login(username, password) {
     const db = DB.load();
     const user = db.users.find(u =>
@@ -31,7 +30,6 @@ const AUTH = {
     return { ok: true, user: session };
   },
 
-  // ============ LOGIN CEPAT ============
   loginAs(role) {
     const db = DB.load();
     const user = db.users.find(u => u.role === role && u.active);
@@ -49,18 +47,15 @@ const AUTH = {
     return { ok: true, user: session };
   },
 
-  // ============ LOGOUT ============
   logout() {
     localStorage.removeItem(SESSION_KEY_AUTH);
   },
 
-  // ============ CURRENT USER ============
   currentUser() {
     const raw = localStorage.getItem(SESSION_KEY_AUTH);
     return raw ? JSON.parse(raw) : null;
   },
 
-  // ============ WAJIB LOGIN ============
   require() {
     const u = AUTH.currentUser();
     if (!u) {
@@ -70,7 +65,6 @@ const AUTH = {
     return u;
   },
 
-  // ============ WAJIB ROLE ============
   requireRole(roles) {
     const u = AUTH.require();
     if (!u) return null;
@@ -90,7 +84,6 @@ const AUTH = {
     return u;
   },
 
-  // ============ PERMISSION ============
   can(permission) {
     const u = AUTH.currentUser();
     if (!u) return false;
@@ -100,12 +93,11 @@ const AUTH = {
       keuangan: [
         'target.view', 'target.create', 'target.update',
         'realisasi.view', 'realisasi.create', 'realisasi.update',
-        'pengadaan.view', 'pengadaan.create', 'pengadaan.update',
         'kendala.view', 'kendala.create', 'kendala.update',
         'progress.view'
       ],
       pimpinan: [
-        'target.view', 'realisasi.view', 'pengadaan.view',
+        'target.view', 'realisasi.view',
         'kendala.view', 'progress.view', 'report.export', 'audit.view'
       ]
     };
@@ -116,52 +108,29 @@ const AUTH = {
 };
 
 // ============================================================
-// MENU CONFIG - Berkomponen (Section + Items + SubItems)
+// MENU CONFIG - Berkomponen (Section + Items)
 // ============================================================
-/**
- * Struktur menu:
- * {
- *   section: 'Judul Grup',
- *   icon: 'lucide-icon-name',  // opsional, ikon untuk section
- *   items: [
- *     {
- *       href: 'page.html',
- *       icon: 'lucide-icon',
- *       label: 'Label Menu',
- *       badge: '5',            // opsional - badge angka/teks
- *       badgeColor: 'red',     // opsional - warna badge
- *       subItems: [            // opsional - submenu
- *         { href: 'page.html?tab=x', label: 'Sub Menu', icon: 'circle' }
- *       ]
- *     }
- *   ]
- * }
- */
-
 const MENU_CONFIG = {
   // ============ ADMIN ============
   admin: [
     {
       section: 'Dashboard',
       items: [
-        {
-          href: 'admin.html',
-          icon: 'layout-dashboard',
-          label: 'Dashboard',
-          permission: null
-        }
+        { href: 'admin.html', icon: 'layout-dashboard', label: 'Dashboard' }
       ]
     },
     {
       section: 'Master Data',
       icon: 'database',
       items: [
+        { href: 'master.html?tab=program', icon: 'folder-kanban', label: 'Program' },
+        { href: 'master.html?tab=subKegiatan', icon: 'git-branch', label: 'Sub-Kegiatan' },
+        { href: 'master.html?tab=komponenBelanja', icon: 'receipt', label: 'Komponen Belanja' },
+        { href: 'master.html?tab=unit', icon: 'building-2', label: 'Unit' },
         { href: 'master.html?tab=jenisPengadaan', icon: 'tags', label: 'Jenis Pengadaan' },
         { href: 'master.html?tab=tahapan', icon: 'list-ordered', label: 'Tahapan' },
         { href: 'master.html?tab=status', icon: 'badge-check', label: 'Status' },
-        { href: 'master.html?tab=unit', icon: 'building-2', label: 'Unit' },
-        { href: 'master.html?tab=kategoriKendala', icon: 'folder-tree', label: 'Kategori Kendala' },
-        { href: 'master.html?tab=kategoriTarget', icon: 'layers', label: 'Kategori Target' }
+        { href: 'master.html?tab=kategoriKendala', icon: 'alert-octagon', label: 'Kategori Kendala' }
       ]
     },
     {
@@ -194,7 +163,6 @@ const MENU_CONFIG = {
       section: 'Pelaksanaan',
       icon: 'briefcase',
       items: [
-        { href: 'pengadaan.html', icon: 'package', label: 'Pengadaan' },
         { href: 'kendala.html', icon: 'alert-triangle', label: 'Kendala' }
       ]
     },
@@ -227,11 +195,13 @@ const MENU_CONFIG = {
 };
 
 // ============================================================
-// SIDEBAR COMPONENT - BRAND HEADER
+// SIDEBAR COMPONENTS
 // ============================================================
+
+// ----- BRAND HEADER -----
 function SidebarBrand() {
   return `
-    <div class="p-5 border-b border-gray-100 flex items-center gap-3">
+    <div class="p-5 border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
       <img src="assets/logo-lanri.png" alt="SIKAP"
         class="w-10 h-10 object-contain rounded-xl flex-shrink-0" />
       <div class="min-w-0">
@@ -243,9 +213,7 @@ function SidebarBrand() {
     </div>`;
 }
 
-// ============================================================
-// SIDEBAR COMPONENT - SECTION HEADER
-// ============================================================
+// ----- SECTION HEADER -----
 function SidebarSectionHeader({ section, icon }) {
   return `
     <p class="px-5 py-2 mt-2 text-[10px] font-bold text-gray-400 tracking-widest uppercase flex items-center gap-1.5">
@@ -254,15 +222,12 @@ function SidebarSectionHeader({ section, icon }) {
     </p>`;
 }
 
-// ============================================================
-// SIDEBAR COMPONENT - MENU ITEM
-// ============================================================
+// ----- MENU ITEM -----
 function SidebarItem({ item, isActive }) {
   const baseCls = 'flex items-center gap-3 px-5 py-2.5 text-sm border-l-4 transition group';
   const activeCls = 'bg-blue-50 text-blue-700 border-blue-700 font-semibold';
   const inactiveCls = 'text-gray-700 border-transparent hover:bg-blue-50 hover:text-blue-700';
 
-  // Badge
   let badgeHtml = '';
   if (item.badge) {
     const badgeColors = {
@@ -277,16 +242,14 @@ function SidebarItem({ item, isActive }) {
   }
 
   return `
-    <a href="${item.href}" class="${baseCls} ${isActive ? activeCls : inactiveCls}">
+    <a href="${item.href}" onclick="closeMobileSidebar()" class="${baseCls} ${isActive ? activeCls : inactiveCls}">
       <i data-lucide="${item.icon}" class="w-4 h-4 flex-shrink-0"></i>
       <span class="truncate">${item.label}</span>
       ${badgeHtml}
     </a>`;
 }
 
-// ============================================================
-// SIDEBAR COMPONENT - MENU ITEM DENGAN SUBMENU
-// ============================================================
+// ----- MENU ITEM WITH SUBMENU -----
 function SidebarItemWithSub({ item, isActive, isOpen }) {
   const baseCls = 'flex items-center gap-3 px-5 py-2.5 text-sm border-l-4 transition cursor-pointer';
   const activeCls = 'bg-blue-50 text-blue-700 border-blue-700 font-semibold';
@@ -295,7 +258,7 @@ function SidebarItemWithSub({ item, isActive, isOpen }) {
   const subItemsHtml = (item.subItems || []).map(sub => {
     const subActive = isActivePath(sub.href);
     return `
-      <a href="${sub.href}"
+      <a href="${sub.href}" onclick="closeMobileSidebar()"
         class="flex items-center gap-2 pl-12 pr-5 py-2 text-xs transition
           ${subActive
             ? 'text-blue-700 font-semibold bg-blue-50/50'
@@ -321,9 +284,7 @@ function SidebarItemWithSub({ item, isActive, isOpen }) {
     </div>`;
 }
 
-// ============================================================
-// SIDEBAR COMPONENT - USER CARD
-// ============================================================
+// ----- USER CARD -----
 function SidebarUserCard(u) {
   const roleLabel = u.role === 'admin' ? 'Administrator'
                   : u.role === 'keuangan' ? 'User Keuangan'
@@ -331,7 +292,7 @@ function SidebarUserCard(u) {
                   : u.role;
 
   return `
-    <div class="p-4 border-t border-gray-100">
+    <div class="p-4 border-t border-gray-100 flex-shrink-0">
       <div class="flex items-center gap-3">
         <div class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-700 to-blue-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
           ${u.name.charAt(0).toUpperCase()}
@@ -345,7 +306,7 @@ function SidebarUserCard(u) {
 }
 
 // ============================================================
-// UTIL - CEK PATH AKTIF
+// UTILITY
 // ============================================================
 function isActivePath(href) {
   if (!href) return false;
@@ -353,12 +314,10 @@ function isActivePath(href) {
   const currentPath = window.location.pathname.split('/').pop() || 'index.html';
   const currentQuery = window.location.search;
 
-  // Kalau href punya query string (mis. master.html?tab=xxx)
   if (href.includes('?')) {
     const [path, query] = href.split('?');
     if (currentPath !== path) return false;
 
-    // Cocokkan query params
     const hrefParams = new URLSearchParams(query);
     const currentParams = new URLSearchParams(currentQuery);
     for (const [k, v] of hrefParams.entries()) {
@@ -367,13 +326,9 @@ function isActivePath(href) {
     return true;
   }
 
-  // Href tanpa query
   return currentPath === href;
 }
 
-// ============================================================
-// TOGGLE SUBMENU (untuk item dengan subItems)
-// ============================================================
 function toggleSubmenu(el) {
   const group = el.closest('[data-menu-group]');
   if (!group) return;
@@ -393,7 +348,7 @@ function toggleSubmenu(el) {
 }
 
 // ============================================================
-// SIDEBAR BUILDER (menggunakan komponen di atas)
+// SIDEBAR BUILDER
 // ============================================================
 function buildSidebar(activePage) {
   const u = AUTH.currentUser();
@@ -405,19 +360,14 @@ function buildSidebar(activePage) {
   html += `<nav class="flex-1 overflow-y-auto py-3">`;
 
   sections.forEach(section => {
-    // Section header
     html += SidebarSectionHeader(section);
 
-    // Items
     (section.items || []).forEach(item => {
       const isActive = isActivePath(item.href);
 
-      // Kalau punya subItems, render dengan submenu
       if (item.subItems && item.subItems.length > 0) {
-        // Cek apakah ada subitem yang aktif atau parent aktif
         const anySubActive = item.subItems.some(s => isActivePath(s.href));
         const isOpen = anySubActive || isActive;
-
         html += SidebarItemWithSub({ item, isActive, isOpen });
       } else {
         html += SidebarItem({ item, isActive });
@@ -432,13 +382,15 @@ function buildSidebar(activePage) {
 }
 
 // ============================================================
-// TOPBAR COMPONENT - BRAND
+// TOPBAR COMPONENTS
 // ============================================================
+
+// ----- TOPBAR BRAND -----
 function TopbarBrand() {
   return `
     <div class="flex items-center gap-3 min-w-0">
       <button class="md:hidden text-gray-700 hover:text-blue-700 transition flex-shrink-0"
-        onclick="document.querySelector('aside').classList.toggle('hidden')">
+        onclick="openMobileSidebar()">
         <i data-lucide="menu" class="w-5 h-5"></i>
       </button>
       <img src="assets/logo-lanri.png" alt="SIKAP"
@@ -450,9 +402,7 @@ function TopbarBrand() {
     </div>`;
 }
 
-// ============================================================
-// TOPBAR COMPONENT - USER ACTIONS
-// ============================================================
+// ----- TOPBAR USER ACTIONS -----
 function TopbarUserActions(u) {
   return `
     <div class="flex items-center gap-3 sm:gap-4 text-sm flex-shrink-0">
@@ -469,9 +419,7 @@ function TopbarUserActions(u) {
     </div>`;
 }
 
-// ============================================================
-// TOPBAR BUILDER
-// ============================================================
+// ----- TOPBAR BUILDER -----
 function buildTopbar() {
   const u = AUTH.currentUser();
   if (!u) return '';
@@ -479,11 +427,7 @@ function buildTopbar() {
 }
 
 // ============================================================
-// LAYOUT WRAPPER
-// ============================================================
-// ============================================================
-// LAYOUT WRAPPER — Sidebar Fixed (Opsi A)
-// Sidebar selalu terlihat, hanya konten yang scroll
+// LAYOUT WRAPPER - Sidebar Fixed (Opsi A)
 // ============================================================
 function renderLayout(activePage, mainContent) {
   const u = AUTH.require();
@@ -492,14 +436,14 @@ function renderLayout(activePage, mainContent) {
   document.body.innerHTML = `
     <div class="min-h-screen bg-gray-50">
 
-      <!-- SIDEBAR — Fixed, full height, scroll independen -->
+      <!-- SIDEBAR DESKTOP - Fixed -->
       <aside class="w-64 bg-white border-r border-gray-200 flex-col
                     hidden md:flex
                     fixed inset-y-0 left-0 z-30">
         ${buildSidebar(activePage)}
       </aside>
 
-      <!-- MOBILE SIDEBAR (overlay) -->
+      <!-- SIDEBAR MOBILE (overlay) -->
       <aside id="mobileSidebar"
              class="w-64 bg-white border-r border-gray-200 flex-col
                     hidden
@@ -510,42 +454,43 @@ function renderLayout(activePage, mainContent) {
            class="fixed inset-0 bg-black/40 z-35 hidden md:hidden"
            onclick="closeMobileSidebar()"></div>
 
-      <!-- MAIN — kasih margin kiri 64 (16rem) di desktop -->
+      <!-- MAIN -->
       <div class="md:ml-64 flex flex-col min-h-screen">
 
-        <!-- TOPBAR — Sticky -->
         <header class="bg-white border-b border-gray-200 px-4 sm:px-6 py-4
                        flex items-center justify-between
                        sticky top-0 z-20">
           ${buildTopbar()}
         </header>
 
-        <!-- KONTEN -->
         <div class="p-4 sm:p-6 flex-1">
           ${mainContent}
         </div>
       </div>
-
     </div>`;
 
   if (window.lucide) lucide.createIcons();
 }
 
 // ============================================================
-// MOBILE SIDEBAR — Toggle
+// MOBILE SIDEBAR TOGGLE
 // ============================================================
 function openMobileSidebar() {
   const sidebar = document.getElementById('mobileSidebar');
   const overlay = document.getElementById('sidebarOverlay');
-  if (sidebar) sidebar.classList.remove('hidden');
-  if (sidebar) sidebar.classList.add('flex');
+  if (sidebar) {
+    sidebar.classList.remove('hidden');
+    sidebar.classList.add('flex');
+  }
   if (overlay) overlay.classList.remove('hidden');
 }
 
 function closeMobileSidebar() {
   const sidebar = document.getElementById('mobileSidebar');
   const overlay = document.getElementById('sidebarOverlay');
-  if (sidebar) sidebar.classList.add('hidden');
-  if (sidebar) sidebar.classList.remove('flex');
+  if (sidebar) {
+    sidebar.classList.add('hidden');
+    sidebar.classList.remove('flex');
+  }
   if (overlay) overlay.classList.add('hidden');
 }

@@ -11,49 +11,26 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   body { font-family: 'Inter', sans-serif; }
-
   .input-nominal {
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.02em;
   }
-
-  /* Detail item animation */
-  .detail-item { animation: slideIn 0.2s ease-out; }
-  @keyframes slideIn {
-    from { opacity: 0; transform: translateY(-4px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  .detail-item.removing {
-    animation: slideOut 0.15s ease-in forwards;
-  }
-  @keyframes slideOut {
-    to { opacity: 0; transform: translateX(-10px); }
-  }
-
-  /* Accordion */
   .detail-expand {
     max-height: 0;
     overflow: hidden;
     transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  .detail-expand.open { max-height: 1200px; }
-
-  .sub-expand {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  .sub-expand.open { max-height: 800px; }
-
-  .chevron-icon {
-    transition: transform 0.3s ease;
-  }
-  .chevron-icon.rotate {
-    transform: rotate(180deg);
-  }
-
+  .detail-expand.open { max-height: 2000px; }
+  .chevron-icon { transition: transform 0.3s ease; }
+  .chevron-icon.rotate { transform: rotate(180deg); }
   tr[data-target-id] { cursor: pointer; }
-  tr[data-komponen-key] { cursor: pointer; }
+  .detail-item { animation: slideIn 0.2s ease-out; }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .detail-item.removing { animation: slideOut 0.15s ease-in forwards; }
+  @keyframes slideOut { to { opacity: 0; transform: translateX(-10px); } }
 </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -65,91 +42,40 @@
 <script>
   AUTH.requireRole(['keuangan']);
   let filterTahun = 2026;
-  const openDetails = new Set();   // Track target expand (level 1)
-  const openKomponen = new Set();  // Track komponen expand (level 2)
+  const openDetails = new Set();
 
-  // ============ FORMAT HELPERS ============
-  if (typeof formatNumberInput !== 'function') {
-    window.formatNumberInput = function(value) {
-      if (value === null || value === undefined || value === '') return '';
-      const numeric = String(value).replace(/\D/g, '');
-      if (numeric === '') return '';
-      return Number(numeric).toLocaleString('id-ID');
-    };
-  }
-  if (typeof parseNumberInput !== 'function') {
-    window.parseNumberInput = function(value) {
-      if (value === null || value === undefined || value === '') return 0;
-      const numeric = String(value).replace(/\D/g, '');
-      return numeric === '' ? 0 : Number(numeric);
-    };
-  }
-  if (typeof attachNumberFormat !== 'function') {
-    window.attachNumberFormat = function(input) {
-      if (!input) return;
-      if (input.value && !input.value.includes('.')) {
-        input.value = formatNumberInput(input.value);
-      }
-      input.addEventListener('input', (e) => {
-        const cursorPos = e.target.selectionStart;
-        const oldLength = e.target.value.length;
-        e.target.value = formatNumberInput(e.target.value);
-        const newLength = e.target.value.length;
-        const newPos = cursorPos + (newLength - oldLength);
-        try { e.target.setSelectionRange(newPos, newPos); } catch(_) {}
-      });
-      input.addEventListener('keypress', (e) => {
-        if (!/[0-9]/.test(e.key) &&
-            !['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
-          e.preventDefault();
-        }
-      });
-      input.addEventListener('paste', (e) => {
-        e.preventDefault();
-        const pasted = (e.clipboardData || window.clipboardData).getData('text');
-        const numeric = pasted.replace(/\D/g, '');
-        e.target.value = formatNumberInput(numeric);
-      });
-    };
+  // ============================================================
+  // HELPER: Kumpulkan kombinasi Program-Sub-Komponen dari target
+  // ============================================================
+  function groupByProgram(details) {
+    const groups = {};
+    details.forEach(d => {
+      const progId = d.programId;
+      if (!groups[progId]) groups[progId] = {};
+      const subId = d.subKegiatanId || 0;
+      if (!groups[progId][subId]) groups[progId][subId] = [];
+      groups[progId][subId].push(d);
+    });
+    return groups;
   }
 
-  // ============ HELPER: HITUNG TOTAL ============
-  /**
-   * Hitung nominal efektif dari 1 komponen:
-   * - Kalau punya subDetails → SUM subDetails
-   * - Kalau tidak → nominal langsung
-   */
-  function getKomponenNominal(d) {
-    if (!d) return 0;
-    if (d.subDetails && d.subDetails.length > 0) {
-      return d.subDetails.reduce((s, x) => s + (x.nominal || 0), 0);
-    }
-    return d.nominal || 0;
-  }
-
-  function hitungTotalBulanan(target) {
-    if (!target || !target.details) return 0;
-    return target.details.reduce((s, d) => s + getKomponenNominal(d), 0);
-  }
-
-  function hitungTotalTahunan(tahun) {
-    return DB.filter('targets', t => t.tahun === tahun)
-      .reduce((s, t) => s + hitungTotalBulanan(t), 0);
-  }
-
-  // ============ RENDER ============
+  // ============================================================
+  // RENDER
+  // ============================================================
   function render() {
     const targets = DB.filter('targets', t => t.tahun === filterTahun).sort((a,b) => a.bulan - b.bulan);
-    const totalTargetTahunan = hitungTotalTahunan(filterTahun);
+    const totalTargetTahunan = targets.reduce((s, t) => s + getTotalTargetBulanan(t), 0);
     const rataRata = targets.length > 0 ? Math.round(totalTargetTahunan / targets.length) : 0;
     const db = DB.load();
-    const kategoriList = db.master.kategoriTarget || [];
 
     const main = `
       <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 class="text-2xl font-bold text-gray-800">Kelola Target</h2>
-          <p class="text-sm text-gray-500 mt-1">Target bulanan disusun dari komponen, dan komponen bisa punya distribusi detail</p>
+          <div class="flex items-center gap-3 mb-1">
+            <div class="w-1 h-8 bg-gradient-to-b from-blue-700 to-blue-400 rounded-full"></div>
+            <h2 class="text-2xl font-bold text-gray-800">Kelola Target</h2>
+          </div>
+          <p class="text-sm text-gray-500 ml-4">Target bulanan disusun dari Program → Sub-Kegiatan → Komponen Belanja</p>
         </div>
         <button onclick="openForm()" class="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-md shadow-blue-200 flex items-center gap-2 transition">
           <i data-lucide="plus" class="w-4 h-4"></i> Tambah Target Bulanan
@@ -161,6 +87,20 @@
         ${statCard({ label: 'Total Target ' + filterTahun, value: formatRupiah(totalTargetTahunan), icon: 'target', color: 'blue' })}
         ${statCard({ label: 'Jumlah Bulan Terdaftar', value: targets.length + ' bulan', icon: 'calendar', color: 'emerald' })}
         ${statCard({ label: 'Rata-rata per Bulan', value: formatRupiah(rataRata), icon: 'trending-up', color: 'amber' })}
+      </div>
+
+      <!-- Info Konsep -->
+      <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-4 mb-5 flex items-start gap-3">
+        <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0">
+          <i data-lucide="lightbulb" class="w-5 h-5"></i>
+        </div>
+        <div class="text-sm text-gray-700">
+          <p class="font-semibold text-blue-900 mb-1">Bagaimana target dihitung?</p>
+          <p class="text-xs leading-relaxed">
+            <b>Target Bulanan</b> = jumlah dari komponen belanja per program. Klik baris untuk melihat
+            rincian lengkap: <b>Program</b> → <b>Sub-Kegiatan</b> → <b>Komponen Belanja</b>.
+          </p>
+        </div>
       </div>
 
       <!-- Filter Tahun -->
@@ -177,7 +117,7 @@
         </div>
       </div>
 
-      <!-- Tabel -->
+      <!-- Tabel dengan Accordion -->
       <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
@@ -185,9 +125,9 @@
               <tr>
                 <th class="text-center px-5 py-4 font-semibold w-16">#</th>
                 <th class="text-center px-5 py-4 font-semibold">Bulan</th>
-                <th class="text-center px-5 py-4 font-semibold w-44">Komponen</th>
+                <th class="text-center px-5 py-4 font-semibold w-44">Detail</th>
                 <th class="text-center px-5 py-4 font-semibold w-56">Target</th>
-                <th class="text-center px-5 py-4 font-semibold w-44">Aksi</th>
+                <th class="text-center px-5 py-4 font-semibold w-32">Aksi</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -200,81 +140,118 @@
                   </td>
                 </tr>` :
                 targets.map((t, i) => {
-                  const totalBulan = hitungTotalBulanan(t);
+                  const totalBulan = getTotalTargetBulanan(t);
                   const detailCount = (t.details || []).length;
                   const isOpen = openDetails.has(t.id);
 
-                  const sortedDetails = [...(t.details || [])].sort((a, b) =>
-                    getKomponenNominal(b) - getKomponenNominal(a)
-                  );
+                  // Kelompokkan detail per Program → Sub-Kegiatan
+                  const grouped = groupByProgram(t.details || []);
+                  const programIds = Object.keys(grouped).map(Number).sort((a,b) => a-b);
 
-                  // Build komponen rows (level 2 accordion)
-                  const komponenRowsHtml = sortedDetails.map((d, dIdx) => {
-                    const kat = kategoriList.find(k => k.id === d.kategoriId);
-                    const nom = getKomponenNominal(d);
-                    const pct = totalBulan > 0 ? ((nom / totalBulan) * 100).toFixed(1) : 0;
-                    const hasSub = d.subDetails && d.subDetails.length > 0;
-                    const key = `${t.id}-${d.kategoriId}`;
-                    const isSubOpen = openKomponen.has(key);
+                  // Build accordion content per program
+                  const programBlocksHtml = programIds.map(progId => {
+                    const prog = getProgramById(progId);
+                    const progName = prog ? prog.nama : 'Tidak diketahui';
+                    const progKode = prog ? prog.kode : '???';
 
-                    // Sub-distribution rows
-                    const subRowsHtml = hasSub ? d.subDetails.map(s => {
-                      const subPct = nom > 0 ? ((s.nominal / nom) * 100).toFixed(1) : 0;
+                    // Hitung total program
+                    let progTotal = 0;
+                    const subIds = Object.keys(grouped[progId]).map(Number).sort((a,b) => a-b);
+                    subIds.forEach(subId => {
+                      grouped[progId][subId].forEach(d => {
+                        progTotal += getKomponenNominal(d);
+                      });
+                    });
+
+                    const progPct = totalBulan > 0 ? ((progTotal / totalBulan) * 100).toFixed(1) : 0;
+
+                    // Build sub-kegiatan blocks
+                    const subBlocksHtml = subIds.map(subId => {
+                      const sub = getSubKegiatanById(subId);
+                      const subName = sub ? sub.nama : 'Tanpa Sub-Kegiatan';
+                      const subKode = sub ? sub.kode : '-';
+                      const details = grouped[progId][subId];
+
+                      let subTotal = 0;
+                      details.forEach(d => { subTotal += getKomponenNominal(d); });
+                      const subPct = totalBulan > 0 ? ((subTotal / totalBulan) * 100).toFixed(1) : 0;
+
+                      // Rows komponen belanja
+                      const komponenRowsHtml = details.map(d => {
+                        const kom = getKomponenBelanjaById(d.komponenId);
+                        const nominal = getKomponenNominal(d);
+                        const pct = totalBulan > 0 ? ((nominal / totalBulan) * 100).toFixed(1) : 0;
+                        const hasSub = d.subDetails && d.subDetails.length > 0;
+
+                        return `
+                          <tr class="border-b border-gray-100 last:border-0 hover:bg-blue-50/30">
+                            <td class="py-2.5 pl-14 pr-3 text-left">
+                              <div class="flex items-center gap-2">
+                                <div class="w-6 h-6 rounded-md bg-emerald-50 text-emerald-700 flex items-center justify-center text-[9px] font-bold flex-shrink-0">
+                                  <i data-lucide="receipt" class="w-3 h-3"></i>
+                                </div>
+                                <div class="min-w-0">
+                                  <p class="text-xs font-medium text-gray-800 truncate">${kom ? kom.nama : 'Tidak diketahui'}</p>
+                                  ${kom ? `<p class="text-[9px] text-gray-400 font-mono">${kom.kode}</p>` : ''}
+                                </div>
+                                ${hasSub ? `<span class="text-[9px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded-full ml-1">${d.subDetails.length} sub</span>` : ''}
+                              </div>
+                            </td>
+                            <td class="py-2.5 px-3 text-right font-mono text-xs font-semibold text-emerald-700 whitespace-nowrap">${formatRupiah(nominal)}</td>
+                            <td class="py-2.5 pl-3 pr-4 text-right text-[10px] text-gray-500 w-16">${pct}%</td>
+                          </tr>`;
+                      }).join('');
+
                       return `
-                        <tr class="border-b border-blue-50 last:border-0">
-                          <td class="py-2 pl-20 pr-3 text-left">
-                            <div class="flex items-center gap-2">
-                              <span class="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0"></span>
-                              <span class="text-xs text-gray-700">${s.label}</span>
+                        <div class="mb-3 last:mb-0">
+                          <!-- Sub-Kegiatan Header -->
+                          <div class="flex items-center gap-2 px-3 py-2 bg-indigo-50/70 rounded-t-lg border border-indigo-100">
+                            <div class="w-6 h-6 rounded-md bg-indigo-100 text-indigo-700 flex items-center justify-center flex-shrink-0">
+                              <i data-lucide="git-branch" class="w-3 h-3"></i>
                             </div>
-                          </td>
-                          <td class="py-2 px-3 text-right font-mono text-xs text-gray-600 whitespace-nowrap">${formatRupiah(s.nominal)}</td>
-                          <td class="py-2 pl-3 pr-6 text-right text-[10px] text-gray-400 w-24">${subPct}%</td>
-                        </tr>`;
-                    }).join('') : '';
+                            <span class="text-[10px] font-mono font-bold text-indigo-700 bg-white px-1.5 py-0.5 rounded">
+                              ${subKode}
+                            </span>
+                            <span class="text-xs font-semibold text-gray-800 flex-1 truncate">${subName}</span>
+                            <span class="text-xs font-bold text-indigo-700 whitespace-nowrap">${formatRupiah(subTotal)}</span>
+                            <span class="text-[10px] text-gray-500 w-12 text-right">${subPct}%</span>
+                          </div>
+                          <!-- Komponen Belanja Table -->
+                          <div class="bg-white border border-t-0 border-indigo-100 rounded-b-lg overflow-hidden">
+                            <table class="w-full">
+                              <tbody>${komponenRowsHtml}</tbody>
+                            </table>
+                          </div>
+                        </div>`;
+                    }).join('');
 
                     return `
-                      <!-- Baris Komponen -->
-                      <tr class="border-b border-gray-100 ${hasSub ? 'cursor-pointer hover:bg-blue-100/40' : ''}"
-                          ${hasSub ? `data-komponen-key="${key}" onclick="event.stopPropagation(); toggleKomponen('${key}')"` : ''}>
-                        <td class="py-2.5 pl-8 pr-3 text-left">
-                          <div class="flex items-center gap-2">
-                            <div class="w-7 h-7 rounded-md bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
-                              ${kat ? (kat.kode || kat.nama.substring(0, 3)).substring(0, 3) : '???'}
-                            </div>
-                            <span class="text-sm font-medium text-gray-800">${kat ? kat.nama : 'Tidak diketahui'}</span>
-                            ${hasSub ? `
-                              <span class="text-[10px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded-full">
-                                ${d.subDetails.length} sub
-                              </span>
-                              <i data-lucide="chevron-down" class="chevron-icon w-3 h-3 text-blue-500 flex-shrink-0 ${isSubOpen ? 'rotate' : ''}"></i>
-                            ` : `
-                            `}
+                      <div class="mb-4 last:mb-0">
+                        <!-- Program Header -->
+                        <div class="flex items-center gap-2.5 px-3 py-2.5 bg-blue-100/80 rounded-lg border border-blue-200 mb-2">
+                          <div class="w-7 h-7 rounded-md bg-blue-700 text-white flex items-center justify-center flex-shrink-0">
+                            <i data-lucide="folder-kanban" class="w-3.5 h-3.5"></i>
                           </div>
-                        </td>
-                        <td class="py-2.5 px-3 text-right font-mono text-sm font-semibold text-blue-700 whitespace-nowrap">${formatRupiah(nom)}</td>
-                        <td class="py-2.5 pl-3 pr-6 text-right text-xs text-gray-500 w-24">${pct}%</td>
-                      </tr>
-
-                      <!-- Sub-distribution Expand -->
-                      ${hasSub ? `
-                        <tr data-sub-for="${key}" class="${isSubOpen ? '' : 'hidden'} bg-blue-50/40">
-                          <td colspan="3" class="p-0">
-                            <div class="sub-expand ${isSubOpen ? 'open' : ''}">
-                              <table class="w-full text-sm">
-                                <tbody>
-                                  ${subRowsHtml}
-                                </tbody>
-                              </table>
+                          <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2">
+                              <span class="text-[10px] font-mono font-bold text-blue-700 bg-white px-1.5 py-0.5 rounded">
+                                ${progKode}
+                              </span>
+                              <span class="text-xs font-bold text-blue-900 truncate">${progName}</span>
                             </div>
-                          </td>
-                        </tr>
-                      ` : ''}
-                    `;
+                          </div>
+                          <span class="text-sm font-bold text-blue-800 whitespace-nowrap">${formatRupiah(progTotal)}</span>
+                          <span class="text-[10px] text-blue-700 w-12 text-right">${progPct}%</span>
+                        </div>
+                        <!-- Sub-Kegiatan -->
+                        <div class="pl-3">
+                          ${subBlocksHtml}
+                        </div>
+                      </div>`;
                   }).join('');
 
                   return `
-                    <!-- Baris Utama Bulan -->
+                    <!-- Baris Utama -->
                     <tr class="hover:bg-blue-50/40 transition"
                         data-target-id="${t.id}"
                         onclick="toggleDetail(${t.id})">
@@ -292,7 +269,7 @@
                       <td class="px-5 py-4 text-center">
                         <span class="inline-flex items-center gap-1.5 text-xs bg-purple-50 text-purple-700 font-semibold px-3 py-1.5 rounded-full">
                           <i data-lucide="layers" class="w-3 h-3"></i>
-                          ${detailCount} komponen
+                          ${detailCount} item
                         </span>
                       </td>
                       <td class="px-5 py-4 text-center">
@@ -312,49 +289,27 @@
                       </td>
                     </tr>
 
-                    <!-- Expand Detail Bulan -->
-                    <tr data-expand-for="${t.id}" class="${isOpen ? '' : 'hidden'} bg-gradient-to-r from-blue-50/60 to-indigo-50/40">
+                    <!-- Expand Detail -->
+                    <tr data-expand-for="${t.id}" class="${isOpen ? '' : 'hidden'} bg-gradient-to-r from-blue-50/40 to-indigo-50/30">
                       <td colspan="5" class="p-0">
                         <div class="detail-expand ${isOpen ? 'open' : ''}">
                           <div class="px-6 py-4">
-                            <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center justify-between mb-4">
                               <div class="flex items-center gap-2">
                                 <i data-lucide="layers" class="w-4 h-4 text-blue-700"></i>
                                 <span class="text-xs font-bold text-blue-900 uppercase tracking-wide">
-                                  Rincian Komponen - ${monthName(t.bulan)} ${t.tahun}
+                                  Rincian Target - ${monthName(t.bulan)} ${t.tahun}
                                 </span>
                               </div>
-                              <span class="text-xs text-gray-500">
-                                ${detailCount} komponen · klik komponen untuk lihat distribusi
-                              </span>
+                              <span class="text-xs text-gray-500">Total: ${formatRupiah(totalBulan)}</span>
                             </div>
 
-                            <div class="bg-white rounded-lg border border-blue-100 overflow-hidden">
-                              <table class="w-full text-sm">
-                                <thead class="bg-blue-50/70">
-                                  <tr>
-                                    <th class="text-left pl-8 pr-3 py-2 text-[10px] uppercase text-blue-700 font-bold tracking-wider">Komponen</th>
-                                    <th class="text-right px-3 py-2 text-[10px] uppercase text-blue-700 font-bold tracking-wider">Nominal</th>
-                                    <th class="text-right pr-6 pl-3 py-2 text-[10px] uppercase text-blue-700 font-bold tracking-wider w-24">Porsi</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  ${komponenRowsHtml || '<tr><td colspan="3" class="text-center py-4 text-gray-400 text-xs">Tidak ada komponen</td></tr>'}
-                                </tbody>
-                                <tfoot class="bg-blue-50 border-t-2 border-blue-200">
-                                  <tr>
-                                    <td class="pl-8 pr-3 py-3 font-bold text-blue-900 text-sm">TOTAL</td>
-                                    <td class="px-3 py-3 text-right font-mono font-bold text-blue-800 text-sm whitespace-nowrap">${formatRupiah(totalBulan)}</td>
-                                    <td class="pr-6 pl-3 py-3 text-right text-xs font-bold text-blue-700">100%</td>
-                                  </tr>
-                                </tfoot>
-                              </table>
-                            </div>
+                            ${programBlocksHtml || '<p class="text-sm text-gray-400 text-center py-4">Tidak ada komponen</p>'}
 
-                            <div class="flex justify-end gap-2 mt-3">
+                            <div class="flex justify-end gap-2 mt-4">
                               <button onclick="event.stopPropagation(); openForm(${t.id})"
                                 class="text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5">
-                                <i data-lucide="edit-3" class="w-3 h-3"></i> Edit Komponen
+                                <i data-lucide="edit-3" class="w-3 h-3"></i> Edit Target
                               </button>
                               <button onclick="event.stopPropagation(); toggleDetail(${t.id})"
                                 class="text-xs bg-white hover:bg-gray-50 text-gray-600 font-semibold px-3 py-1.5 rounded-lg border border-gray-200 transition flex items-center gap-1.5">
@@ -385,22 +340,19 @@
 
       <div class="mt-5 bg-blue-50 border-l-4 border-blue-700 p-4 rounded-r-lg text-sm text-blue-900 flex items-start gap-3">
         <i data-lucide="info" class="w-5 h-5 flex-shrink-0 mt-0.5"></i>
-        <span>Klik baris bulan untuk lihat komponen. Klik komponen (yang punya tanda <b>chevron</b>) untuk lihat sub-distribusi.</span>
+        <span>Klik baris tabel untuk melihat rincian hirarki <b>Program → Sub-Kegiatan → Komponen Belanja</b>.</span>
       </div>
     `;
 
     renderLayout('target.html', main);
   }
 
-  // ============ GANTI TAHUN ============
   function changeTahun(y) {
     filterTahun = Number(y);
     openDetails.clear();
-    openKomponen.clear();
     render();
   }
 
-  // ============ TOGGLE LEVEL 1: Bulan ============
   function toggleDetail(targetId) {
     const row = document.querySelector(`tr[data-target-id="${targetId}"]`);
     const expandRow = document.querySelector(`tr[data-expand-for="${targetId}"]`);
@@ -416,9 +368,7 @@
       if (chevron) chevron.classList.remove('rotate');
       row.classList.remove('bg-blue-50/60');
       setTimeout(() => {
-        if (!openDetails.has(targetId)) {
-          expandRow.classList.add('hidden');
-        }
+        if (!openDetails.has(targetId)) expandRow.classList.add('hidden');
       }, 350);
     } else {
       openDetails.add(targetId);
@@ -430,171 +380,87 @@
     }
   }
 
-  // ============ TOGGLE LEVEL 2: Komponen ============
-  function toggleKomponen(key) {
-    const row = document.querySelector(`tr[data-komponen-key="${key}"]`);
-    const expandRow = document.querySelector(`tr[data-sub-for="${key}"]`);
-    if (!row || !expandRow) return;
-
-    const container = expandRow.querySelector('.sub-expand');
-    const chevron = row.querySelector('.chevron-icon');
-    const isOpen = openKomponen.has(key);
-
-    if (isOpen) {
-      openKomponen.delete(key);
-      container.classList.remove('open');
-      if (chevron) chevron.classList.remove('rotate');
-      setTimeout(() => {
-        if (!openKomponen.has(key)) {
-          expandRow.classList.add('hidden');
-        }
-      }, 300);
-    } else {
-      openKomponen.add(key);
-      expandRow.classList.remove('hidden');
-      void container.offsetHeight;
-      container.classList.add('open');
-      if (chevron) chevron.classList.add('rotate');
-    }
-  }
-
   // ============================================================
-  // KOMPONEN ROW untuk FORM (dengan sub-distribusi)
+  // FORM ROW KOMPONEN (setiap baris = 1 komponen belanja)
   // ============================================================
-  function KomponenRow(detail, idx, kategoriList, usedIds) {
-    const options = kategoriList.map(k => {
-      const isUsed = usedIds.includes(k.id) && detail.kategoriId !== k.id;
-      const selected = detail.kategoriId === k.id;
-      return `<option value="${k.id}" ${selected ? 'selected' : ''} ${isUsed ? 'disabled' : ''}>
-        ${k.nama}${isUsed ? ' (sudah dipakai)' : ''}
-      </option>`;
-    }).join('');
+  function KomponenRowHTML(detail, idx, db) {
+    const programs = db.master.program || [];
+    const subKegiatans = db.master.subKegiatan || [];
+    const komponens = db.master.komponenBelanja || [];
 
-    const hasSub = detail.subDetails && detail.subDetails.length > 0;
-    const nominal = getKomponenNominal(detail);
+    const programOptions = programs.map(p =>
+      `<option value="${p.id}" ${detail.programId === p.id ? 'selected' : ''}>${p.kode} - ${p.nama}</option>`
+    ).join('');
 
-    const subRowsHtml = hasSub ? detail.subDetails.map((s, sIdx) => `
-      <div class="flex items-center gap-2 pl-10 pr-1">
-        <span class="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0"></span>
-        <input type="text" class="sub-label flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs"
-          value="${s.label || ''}" placeholder="Label distribusi" />
-        <div class="relative w-40">
-          <span class="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] font-semibold pointer-events-none">Rp</span>
-          <input type="text" inputmode="numeric"
-            class="sub-nominal input-nominal w-full pl-7 pr-2 py-1.5 border border-gray-200 rounded-lg text-xs text-right font-mono"
-            value="${formatNumberInput(s.nominal)}" placeholder="0" />
-        </div>
-        <button type="button" onclick="removeSubRow(this)"
-          class="text-red-400 hover:bg-red-50 p-1.5 rounded transition flex-shrink-0" title="Hapus distribusi">
-          <i data-lucide="x" class="w-3 h-3"></i>
-        </button>
-      </div>
-    `).join('') : '';
+    // Sub-kegiatan difilter berdasarkan program terpilih
+    const subOptions = subKegiatans
+      .filter(s => s.programId === detail.programId)
+      .map(s => `<option value="${s.id}" ${detail.subKegiatanId === s.id ? 'selected' : ''}>${s.kode} - ${s.nama}</option>`)
+      .join('');
+
+    const komponenOptions = komponens.map(k =>
+      `<option value="${k.id}" ${detail.komponenId === k.id ? 'selected' : ''}>${k.nama}</option>`
+    ).join('');
 
     return `
-      <div class="detail-row detail-item border border-gray-200 rounded-lg p-3 space-y-2" data-idx="${idx}">
-        <!-- Baris utama komponen -->
-        <div class="flex items-center gap-2">
-          <select class="detail-kategori flex-1 px-2.5 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white">
-            <option value="">- Pilih Komponen -</option>
-            ${options}
-          </select>
-          <div class="relative w-48">
-            <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-semibold pointer-events-none">Rp</span>
-            <input type="text" inputmode="numeric" autocomplete="off"
-              class="detail-nominal input-nominal w-full pl-8 pr-2 py-2 border border-gray-200 rounded-lg text-sm text-right font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent ${hasSub ? 'bg-gray-100 cursor-not-allowed' : ''}"
-              value="${formatNumberInput(nominal)}" placeholder="0" ${hasSub ? 'readonly title="Nominal dihitung otomatis dari sub-distribusi"' : ''} />
+      <div class="form-row detail-item border border-gray-200 rounded-lg p-3 bg-white" data-idx="${idx}">
+        <!-- Row 1: Program + Sub-Kegiatan -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+          <div>
+            <label class="text-[10px] text-gray-500 uppercase font-semibold block mb-1">Program</label>
+            <select class="form-program w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 bg-white">
+              <option value="">- Pilih Program -</option>
+              ${programOptions}
+            </select>
+          </div>
+          <div>
+            <label class="text-[10px] text-gray-500 uppercase font-semibold block mb-1">Sub-Kegiatan</label>
+            <select class="form-sub w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 bg-white">
+              <option value="">- Pilih Sub-Kegiatan -</option>
+              ${subOptions}
+            </select>
+          </div>
+        </div>
+
+        <!-- Row 2: Komponen + Nominal + Hapus -->
+        <div class="grid grid-cols-[1fr_180px_40px] gap-2 items-end">
+          <div>
+            <label class="text-[10px] text-gray-500 uppercase font-semibold block mb-1">Komponen Belanja</label>
+            <select class="form-komponen w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 bg-white">
+              <option value="">- Pilih Komponen -</option>
+              ${komponenOptions}
+            </select>
+          </div>
+          <div>
+            <label class="text-[10px] text-gray-500 uppercase font-semibold block mb-1">Nominal</label>
+            <div class="relative">
+              <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] font-semibold pointer-events-none">Rp</span>
+              <input type="text" inputmode="numeric" autocomplete="off"
+                class="form-nominal input-nominal w-full pl-7 pr-2 py-2 border border-gray-200 rounded-lg text-xs text-right font-mono focus:ring-2 focus:ring-blue-500"
+                value="${formatNumberInput(getKomponenNominal(detail))}" placeholder="0" />
+            </div>
           </div>
           <button type="button" onclick="removeDetailRow(this)"
-            class="text-red-500 hover:bg-red-50 p-2 rounded-lg transition flex-shrink-0" title="Hapus komponen">
+            class="text-red-500 hover:bg-red-50 p-2 rounded-lg transition flex-shrink-0" title="Hapus baris">
             <i data-lucide="x" class="w-4 h-4"></i>
           </button>
         </div>
-
-        <!-- Toggle + tombol tambah sub -->
-        <div class="flex items-center justify-between pl-1">
-          <button type="button" onclick="toggleSubForm(this)"
-            class="text-[11px] font-semibold flex items-center gap-1 ${hasSub ? 'text-blue-700' : 'text-gray-500 hover:text-blue-700'}">
-            <i data-lucide="${hasSub ? 'chevron-up' : 'chevron-down'}" class="w-3 h-3 sub-toggle-icon"></i>
-            <span class="sub-toggle-label">${hasSub ? 'Sembunyikan distribusi (' + detail.subDetails.length + ')' : 'Tambah distribusi (opsional)'}</span>
-          </button>
-          <button type="button" onclick="addSubRow(this)"
-            class="text-[11px] bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold px-2 py-1 rounded transition flex items-center gap-1">
-            <i data-lucide="plus" class="w-3 h-3"></i> Sub
-          </button>
-        </div>
-
-        <!-- Container sub -->
-        <div class="sub-container space-y-1.5 ${hasSub ? '' : 'hidden'}">
-          ${subRowsHtml}
-        </div>
       </div>`;
   }
 
-  // ============ FORM HEADER ============
-  function KomponenFormHeader(t, filterTahun) {
-    return `
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="block font-semibold text-gray-700 mb-1.5 text-xs uppercase tracking-wide">Tahun</label>
-          <input id="f-tahun" type="number" min="2020" max="2099"
-            class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            value="${t ? t.tahun : filterTahun}" />
-        </div>
-        <div>
-          <label class="block font-semibold text-gray-700 mb-1.5 text-xs uppercase tracking-wide">Bulan</label>
-          <select id="f-bulan"
-            class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white">
-            ${Array.from({length:12},(_,i)=>i+1).map(m =>
-              `<option value="${m}" ${t?.bulan === m ? 'selected' : ''}>${monthName(m)}</option>`
-            ).join('')}
-          </select>
-        </div>
-      </div>`;
-  }
-
-  // ============ DETAIL LIST untuk FORM ============
-  function KomponenDetailList(details, kategoriList) {
-    const usedIds = details.map(d => d.kategoriId).filter(Boolean);
-    return `
-      <div>
-        <div class="flex items-center justify-between mb-2">
-          <label class="block font-semibold text-gray-700 text-xs uppercase tracking-wide">Komponen Target</label>
-          <button type="button" onclick="addDetailRow()"
-            class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold px-2.5 py-1 rounded-md transition flex items-center gap-1">
-            <i data-lucide="plus" class="w-3 h-3"></i> Tambah Komponen
-          </button>
-        </div>
-
-        <div id="detail-container" class="space-y-3 max-h-96 overflow-y-auto pr-1">
-          ${details.map((d, idx) =>
-            KomponenRow(d, idx, kategoriList, usedIds.filter(id => id !== d.kategoriId))
-          ).join('')}
-        </div>
-
-        <div class="mt-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-lg p-3 flex items-center justify-between">
-          <span class="text-sm font-semibold text-blue-900 flex items-center gap-2">
-            <i class="w-4 h-4"></i> Total Target Bulanan
-          </span>
-          <span id="f-total" class="text-lg font-bold text-blue-800 font-mono">Rp 0</span>
-        </div>
-      </div>`;
-  }
-
-  // ============ FORM OPEN (CREATE/EDIT) ============
+  // ============================================================
+  // FORM OPEN
+  // ============================================================
   function openForm(id) {
     const t = id ? DB.find('targets', x => x.id === id) : null;
     const db = DB.load();
-    const kategoriList = db.master.kategoriTarget || [];
 
-    if (kategoriList.length === 0) {
+    const programs = db.master.program || [];
+    if (programs.length === 0) {
       Swal.fire({
         icon: 'warning',
-        title: 'Master Kategori Kosong',
-        html: `<div class="text-sm text-gray-600 text-left">
-          <p class="mb-3">Belum ada kategori target di master data. Hubungi Admin.</p>
-          <p class="text-xs bg-gray-50 rounded p-2 font-mono">Admin → Master Data → Kategori Target</p>
-        </div>`,
+        title: 'Master Data Kosong',
+        html: '<p class="text-sm text-gray-600">Belum ada Program di master data. Hubungi Admin untuk menambahkannya.</p>',
         confirmButtonText: 'Mengerti'
       });
       return;
@@ -602,15 +468,52 @@
 
     const initialDetails = t && t.details && t.details.length > 0
       ? JSON.parse(JSON.stringify(t.details))
-      : [{ kategoriId: kategoriList[0]?.id || '', nominal: 0, subDetails: [] }];
+      : [{ programId: '', subKegiatanId: '', komponenId: '', nominal: 0, subDetails: [] }];
 
     Swal.fire({
       title: t ? 'Edit Target Bulanan' : 'Tambah Target Bulanan',
-      width: 780,
+      width: 900,
       html: `
         <div class="text-left space-y-4 text-sm mt-2">
-          ${KomponenFormHeader(t, filterTahun)}
-          ${KomponenDetailList(initialDetails, kategoriList)}
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block font-semibold text-gray-700 mb-1.5 text-xs uppercase tracking-wide">Tahun</label>
+              <input id="f-tahun" type="number" min="2020" max="2099"
+                class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                value="${t ? t.tahun : filterTahun}" />
+            </div>
+            <div>
+              <label class="block font-semibold text-gray-700 mb-1.5 text-xs uppercase tracking-wide">Bulan</label>
+              <select id="f-bulan"
+                class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white">
+                ${Array.from({length:12},(_,i)=>i+1).map(m =>
+                  `<option value="${m}" ${t?.bulan === m ? 'selected' : ''}>${monthName(m)}</option>`
+                ).join('')}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="block font-semibold text-gray-700 text-xs uppercase tracking-wide">
+                Komponen Belanja <span class="text-gray-400 normal-case font-normal">(${initialDetails.length} item)</span>
+              </label>
+              <button type="button" onclick="addDetailRow()"
+                class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold px-2.5 py-1 rounded-md transition flex items-center gap-1">
+                <i data-lucide="plus" class="w-3 h-3"></i> Tambah Baris
+              </button>
+            </div>
+            <div id="detail-container" class="space-y-2 max-h-96 overflow-y-auto pr-1">
+              ${initialDetails.map((d, idx) => KomponenRowHTML(d, idx, db)).join('')}
+            </div>
+          </div>
+
+          <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-lg p-3 flex items-center justify-between">
+            <span class="text-sm font-semibold text-blue-900 flex items-center gap-2">
+              <i data-lucide="sigma" class="w-4 h-4"></i> Total Target Bulanan
+            </span>
+            <span id="f-total" class="text-lg font-bold text-blue-800 font-mono">Rp 0</span>
+          </div>
         </div>
       `,
       showCancelButton: true,
@@ -624,7 +527,7 @@
       buttonsStyling: false,
       didOpen: () => {
         if (window.lucide) lucide.createIcons();
-        attachAllDetailEvents();
+        attachAllRowEvents();
         updateTotal();
       },
       preConfirm: () => {
@@ -632,7 +535,7 @@
         const bulan = Number(document.getElementById('f-bulan').value);
 
         if (!tahun || tahun < 2020 || tahun > 2099) {
-          Swal.showValidationMessage('Tahun harus antara 2020 - 2099');
+          Swal.showValidationMessage('Tahun tidak valid');
           return false;
         }
         if (!bulan || bulan < 1 || bulan > 12) {
@@ -640,73 +543,38 @@
           return false;
         }
 
-        const rows = document.querySelectorAll('#detail-container .detail-row');
+        const rows = document.querySelectorAll('#detail-container .form-row');
         const details = [];
         let valid = true;
         let errMsg = '';
 
         rows.forEach((row, idx) => {
-          const kategoriId = Number(row.querySelector('.detail-kategori').value);
-          if (!kategoriId) {
-            valid = false;
-            errMsg = `Komponen ${idx + 1}: Kategori belum dipilih`;
-            return;
-          }
+          const programId = Number(row.querySelector('.form-program').value);
+          const subKegiatanId = Number(row.querySelector('.form-sub').value);
+          const komponenId = Number(row.querySelector('.form-komponen').value);
+          const nominal = parseNumberInput(row.querySelector('.form-nominal').value);
 
-          // Cek apakah ada subDetails
-          const subRows = row.querySelectorAll('.sub-container > div');
-          const subDetails = [];
-          subRows.forEach((sr, sIdx) => {
-            const labelEl = sr.querySelector('.sub-label');
-            const nomEl = sr.querySelector('.sub-nominal');
-            if (!labelEl || !nomEl) return;
-            const label = labelEl.value.trim();
-            const nominal = parseNumberInput(nomEl.value);
-            if (!label) {
-              valid = false;
-              errMsg = `Komponen ${idx + 1} → Sub ${sIdx + 1}: Label wajib diisi`;
-              return;
-            }
-            if (nominal <= 0) {
-              valid = false;
-              errMsg = `Komponen ${idx + 1} → Sub "${label}": Nominal harus > 0`;
-              return;
-            }
-            subDetails.push({ label, nominal });
+          if (!programId) { valid = false; errMsg = `Baris ${idx+1}: Program belum dipilih`; return; }
+          if (!komponenId) { valid = false; errMsg = `Baris ${idx+1}: Komponen belum dipilih`; return; }
+          if (nominal <= 0) { valid = false; errMsg = `Baris ${idx+1}: Nominal harus > 0`; return; }
+
+          details.push({
+            programId,
+            subKegiatanId: subKegiatanId || null,
+            komponenId,
+            nominal,
+            subDetails: []
           });
-
-          if (!valid) return;
-
-          if (subDetails.length > 0) {
-            // Punya sub-distribusi → nominal auto
-            const nominal = subDetails.reduce((s, x) => s + x.nominal, 0);
-            details.push({ kategoriId, nominal, subDetails });
-          } else {
-            // Tanpa sub → nominal manual
-            const nominal = parseNumberInput(row.querySelector('.detail-nominal').value);
-            if (nominal <= 0) {
-              valid = false;
-              errMsg = `Komponen ${idx + 1}: Nominal harus > 0 (atau isi distribusi)`;
-              return;
-            }
-            details.push({ kategoriId, nominal, subDetails: [] });
-          }
         });
 
-        if (!valid) {
-          Swal.showValidationMessage(errMsg);
-          return false;
-        }
-        if (details.length === 0) {
-          Swal.showValidationMessage('Minimal 1 komponen harus diisi');
-          return false;
-        }
+        if (!valid) { Swal.showValidationMessage(errMsg); return false; }
+        if (details.length === 0) { Swal.showValidationMessage('Minimal 1 komponen'); return false; }
 
-        const kategoriIds = details.map(d => d.kategoriId);
-        const dupe = kategoriIds.find((k, i) => kategoriIds.indexOf(k) !== i);
+        // Cek duplikat kombinasi
+        const keys = details.map(d => `${d.programId}-${d.subKegiatanId}-${d.komponenId}`);
+        const dupe = keys.find((k, i) => keys.indexOf(k) !== i);
         if (dupe) {
-          const kat = kategoriList.find(x => x.id === dupe);
-          Swal.showValidationMessage(`Komponen "${kat.nama}" duplikat.`);
+          Swal.showValidationMessage('Ada kombinasi Program-Sub-Komponen yang duplikat');
           return false;
         }
 
@@ -721,7 +589,7 @@
 
       if (t) {
         const idx = db.targets.findIndex(x => x.id === id);
-        const beforeTotal = hitungTotalBulanan(db.targets[idx]);
+        const beforeTotal = getTotalTargetBulanan(db.targets[idx]);
         db.targets[idx] = { ...db.targets[idx], ...data };
         DB.save(db);
         recordAudit({
@@ -729,10 +597,10 @@
           module: 'Target',
           recordId: `TGT-${String(id).padStart(5, '0')}`,
           before: `${monthName(t.bulan)} ${t.tahun} - ${formatRupiah(beforeTotal)}`,
-          after: `${monthName(data.bulan)} ${data.tahun} - ${formatRupiah(totalNominal)} (${data.details.length} komponen)`
+          after: `${monthName(data.bulan)} ${data.tahun} - ${formatRupiah(totalNominal)} (${data.details.length} item)`
         });
         toastSuccess('Target berhasil diupdate');
-        if (!openDetails.has(id)) openDetails.add(id);
+        openDetails.add(id);
       } else {
         if (db.targets.some(x => x.tahun === data.tahun && x.bulan === data.bulan)) {
           toastError(`Target untuk ${monthName(data.bulan)} ${data.tahun} sudah ada`);
@@ -746,9 +614,9 @@
           action: 'CREATE',
           module: 'Target',
           recordId: `TGT-${String(newId).padStart(5, '0')}`,
-          after: `${monthName(data.bulan)} ${data.tahun} - ${formatRupiah(totalNominal)} (${data.details.length} komponen)`
+          after: `${monthName(data.bulan)} ${data.tahun} - ${formatRupiah(totalNominal)} (${data.details.length} item)`
         });
-        toastSuccess('Target bulanan berhasil ditambahkan');
+        toastSuccess('Target berhasil ditambahkan');
         openDetails.add(newId);
       }
       render();
@@ -756,38 +624,31 @@
   }
 
   // ============================================================
-  // DETAIL ROW ACTIONS
+  // ADD / REMOVE ROW
   // ============================================================
   function addDetailRow() {
     const container = document.getElementById('detail-container');
     if (!container) return;
     const db = DB.load();
-    const kategoriList = db.master.kategoriTarget || [];
 
-    const usedIds = Array.from(container.querySelectorAll('.detail-kategori'))
-      .map(s => Number(s.value))
-      .filter(Boolean);
-    const available = kategoriList.find(k => !usedIds.includes(k.id));
-
-    const html = KomponenRow(
-      { kategoriId: available ? available.id : '', nominal: 0, subDetails: [] },
+    const newRow = KomponenRowHTML(
+      { programId: '', subKegiatanId: '', komponenId: '', nominal: 0, subDetails: [] },
       container.children.length,
-      kategoriList,
-      usedIds
+      db
     );
-    container.insertAdjacentHTML('beforeend', html);
+    container.insertAdjacentHTML('beforeend', newRow);
 
     if (window.lucide) lucide.createIcons();
-    attachAllDetailEvents();
+    attachAllRowEvents();
     updateTotal();
   }
 
   function removeDetailRow(btn) {
-    const row = btn.closest('.detail-row');
+    const row = btn.closest('.form-row');
     if (!row) return;
     const container = document.getElementById('detail-container');
     if (container.children.length === 1) {
-      toastError('Minimal 1 komponen harus ada');
+      toastError('Minimal 1 baris harus ada');
       return;
     }
     row.classList.add('removing');
@@ -797,252 +658,51 @@
     }, 150);
   }
 
-  // ============ SUB ROW ACTIONS ============
-  function addSubRow(btn) {
-    const row = btn.closest('.detail-row');
-    if (!row) return;
-    const container = row.querySelector('.sub-container');
-    if (!container) return;
-
-    // Buka container
-    container.classList.remove('hidden');
-
-    // Tambah baris sub
-    const subHtml = `
-      <div class="flex items-center gap-2 pl-10 pr-1">
-        <span class="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0"></span>
-        <input type="text" class="sub-label flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs"
-          value="" placeholder="Label distribusi" />
-        <div class="relative w-40">
-          <span class="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] font-semibold pointer-events-none">Rp</span>
-          <input type="text" inputmode="numeric"
-            class="sub-nominal input-nominal w-full pl-7 pr-2 py-1.5 border border-gray-200 rounded-lg text-xs text-right font-mono"
-            value="" placeholder="0" />
-        </div>
-        <button type="button" onclick="removeSubRow(this)"
-          class="text-red-400 hover:bg-red-50 p-1.5 rounded transition flex-shrink-0" title="Hapus distribusi">
-          <i data-lucide="x" class="w-3 h-3"></i>
-        </button>
-      </div>`;
-    container.insertAdjacentHTML('beforeend', subHtml);
-
-    // Update toggle label
-    const toggleBtn = row.querySelector('.sub-toggle-label');
-    const count = container.children.length;
-    if (toggleBtn) toggleBtn.textContent = `Sembunyikan distribusi (${count})`;
-
-    // Update chevron toggle state
-    const toggleIcon = row.querySelector('.sub-toggle-icon');
-    if (toggleIcon) {
-      toggleIcon.setAttribute('data-lucide', 'chevron-up');
-    }
-
-    // Nominal komponen jadi readonly
-    const nomEl = row.querySelector('.detail-nominal');
-    if (nomEl) {
-      nomEl.classList.add('bg-gray-100', 'cursor-not-allowed');
-      nomEl.readOnly = true;
-      nomEl.title = 'Nominal dihitung otomatis dari sub-distribusi';
-    }
-
-    if (window.lucide) lucide.createIcons();
-    attachSubEvents(row);
-    updateTotal();
-
-    // Focus ke sub label
-    const subs = container.querySelectorAll('.sub-label');
-    if (subs.length > 0) subs[subs.length - 1].focus();
-  }
-
-  function removeSubRow(btn) {
-    const subRow = btn.closest('div.flex');
-    if (!subRow) return;
-    const komponenRow = btn.closest('.detail-row');
-    const container = subRow.parentElement;
-
-    subRow.remove();
-    updateTotal();
-
-    // Kalau sub kosong, balikkan nominal jadi editable
-    if (container && container.children.length === 0) {
-      container.classList.add('hidden');
-      const nomEl = komponenRow?.querySelector('.detail-nominal');
-      if (nomEl) {
-        nomEl.classList.remove('bg-gray-100', 'cursor-not-allowed');
-        nomEl.readOnly = false;
-        nomEl.title = '';
-      }
-      const toggleBtn = komponenRow?.querySelector('.sub-toggle-label');
-      if (toggleBtn) toggleBtn.textContent = 'Tambah distribusi (opsional)';
-      const toggleIcon = komponenRow?.querySelector('.sub-toggle-icon');
-      if (toggleIcon) toggleIcon.setAttribute('data-lucide', 'chevron-down');
-      if (window.lucide) lucide.createIcons();
-    } else {
-      const toggleBtn = komponenRow?.querySelector('.sub-toggle-label');
-      if (toggleBtn) toggleBtn.textContent = `Sembunyikan distribusi (${container.children.length})`;
-    }
-  }
-
-  function toggleSubForm(btn) {
-    const row = btn.closest('.detail-row');
-    if (!row) return;
-    const container = row.querySelector('.sub-container');
-    const icon = row.querySelector('.sub-toggle-icon');
-    const label = row.querySelector('.sub-toggle-label');
-    if (!container) return;
-
-    const isHidden = container.classList.contains('hidden');
-    if (isHidden) {
-      container.classList.remove('hidden');
-      if (icon) icon.setAttribute('data-lucide', 'chevron-up');
-      if (label) {
-        const count = container.children.length;
-        label.textContent = count > 0 ? `Sembunyikan distribusi (${count})` : 'Sembunyikan distribusi';
-      }
-    } else {
-      container.classList.add('hidden');
-      if (icon) icon.setAttribute('data-lucide', 'chevron-down');
-      if (label) {
-        const count = container.children.length;
-        label.textContent = count > 0 ? `Tambah distribusi (opsional) - ${count} item` : 'Tambah distribusi (opsional)';
-      }
-    }
-    if (window.lucide) lucide.createIcons();
-  }
-
-  // ============ ATTACH EVENTS ============
-  function attachAllDetailEvents() {
-    document.querySelectorAll('#detail-container .detail-row').forEach(row => {
+  // ============================================================
+  // ATTACH EVENTS
+  // ============================================================
+  function attachAllRowEvents() {
+    document.querySelectorAll('#detail-container .form-row').forEach(row => {
       attachRowEvents(row);
     });
   }
 
   function attachRowEvents(row) {
-    const nomEl = row.querySelector('.detail-nominal');
+    const progEl = row.querySelector('.form-program');
+    const subEl = row.querySelector('.form-sub');
+    const nomEl = row.querySelector('.form-nominal');
+
+    // Program change → reload sub-kegiatan
+    if (progEl && !progEl.dataset.bound) {
+      progEl.addEventListener('change', () => {
+        const programId = Number(progEl.value);
+        const db = DB.load();
+        const subs = (db.master.subKegiatan || []).filter(s => s.programId === programId);
+
+        subEl.innerHTML = '<option value="">- Pilih Sub-Kegiatan -</option>' +
+          subs.map(s => `<option value="${s.id}">${s.kode} - ${s.nama}</option>`).join('');
+      });
+      progEl.dataset.bound = '1';
+    }
+
+    // Nominal format
     if (nomEl && !nomEl.dataset.bound) {
       attachNumberFormat(nomEl);
       nomEl.addEventListener('input', updateTotal);
       nomEl.dataset.bound = '1';
     }
-    const katEl = row.querySelector('.detail-kategori');
-    if (katEl && !katEl.dataset.bound) {
-      katEl.addEventListener('change', () => {
-        refreshOptions();
-      });
-      katEl.dataset.bound = '1';
-    }
-    // Bind sub inputs
-    attachSubEvents(row);
-  }
-
-  function attachSubEvents(row) {
-    row.querySelectorAll('.sub-nominal').forEach(inp => {
-      if (!inp.dataset.bound) {
-        attachNumberFormat(inp);
-        inp.addEventListener('input', () => {
-          syncNominalFromSub(row);
-          updateTotal();
-        });
-        inp.dataset.bound = '1';
-      }
-    });
-  }
-
-  // Auto-update nominal komponen dari sub
-  function syncNominalFromSub(row) {
-    const container = row.querySelector('.sub-container');
-    if (!container || container.children.length === 0) return;
-    let total = 0;
-    container.querySelectorAll('.sub-nominal').forEach(inp => {
-      total += parseNumberInput(inp.value);
-    });
-    const nomEl = row.querySelector('.detail-nominal');
-    if (nomEl) nomEl.value = formatNumberInput(total);
-  }
-
-  function refreshOptions() {
-    const container = document.getElementById('detail-container');
-    if (!container) return;
-    const db = DB.load();
-    const kategoriList = db.master.kategoriTarget || [];
-    const selects = container.querySelectorAll('.detail-kategori');
-
-    const usedIds = Array.from(selects).map(s => Number(s.value)).filter(Boolean);
-
-    selects.forEach(sel => {
-      const currentVal = Number(sel.value);
-      Array.from(sel.options).forEach(opt => {
-        const optVal = Number(opt.value);
-        if (!optVal) return;
-        const isUsed = usedIds.includes(optVal) && currentVal !== optVal;
-        opt.disabled = isUsed;
-        const kat = kategoriList.find(k => k.id === optVal);
-        if (kat) opt.textContent = kat.nama + (isUsed ? ' (sudah dipakai)' : '');
-      });
-    });
   }
 
   function updateTotal() {
     const totalEl = document.getElementById('f-total');
     if (!totalEl) return;
     let total = 0;
-    document.querySelectorAll('#detail-container .detail-row').forEach(row => {
-      const subContainer = row.querySelector('.sub-container');
-      const hasSub = subContainer && subContainer.children.length > 0 && !subContainer.classList.contains('hidden');
-      if (hasSub) {
-        subContainer.querySelectorAll('.sub-nominal').forEach(inp => {
-          total += parseNumberInput(inp.value);
-        });
-      } else {
-        const nomEl = row.querySelector('.detail-nominal');
-        if (nomEl) total += parseNumberInput(nomEl.value);
-      }
+    document.querySelectorAll('#detail-container .form-nominal').forEach(inp => {
+      total += parseNumberInput(inp.value);
     });
     totalEl.textContent = formatRupiah(total);
   }
 
-  // ============ DELETE ============
-  function deleteItem(id) {
-    const t = DB.find('targets', x => x.id === id);
-    const total = hitungTotalBulanan(t);
-    const detailCount = (t.details || []).length;
-
-    swalTheme.fire({
-      title: 'Hapus Target Bulanan?',
-      html: `<div class="text-sm text-gray-600 space-y-2">
-        <p>Target <b>${monthName(t.bulan)} ${t.tahun}</b> akan dihapus permanen.</p>
-        <div class="bg-gray-50 rounded-lg p-3 text-xs space-y-1">
-          <div class="flex justify-between"><span>Total Target:</span><b class="text-blue-700">${formatRupiah(total)}</b></div>
-          <div class="flex justify-between"><span>Komponen:</span><b>${detailCount} item</b></div>
-        </div>
-      </div>`,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Ya, Hapus',
-      cancelButtonText: 'Batal'
-    }).then(r => {
-      if (!r.isConfirmed) return;
-
-      const db = DB.load();
-      db.targets = db.targets.filter(x => x.id !== id);
-      db.realisasis = db.realisasis.filter(r => r.targetId !== id);
-      DB.save(db);
-
-      recordAudit({
-        action: 'DELETE',
-        module: 'Target',
-        recordId: `TGT-${String(id).padStart(5, '0')}`,
-        before: `${monthName(t.bulan)} ${t.tahun} - ${formatRupiah(total)}`,
-        after: '-'
-      });
-
-      openDetails.delete(id);
-      toastSuccess('Target berhasil dihapus');
-      render();
-    });
-  }
-
-  // ============ INIT ============
   render();
 </script>
 </body>
