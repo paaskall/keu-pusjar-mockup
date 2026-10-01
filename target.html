@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>SIKAP — Kelola Target</title>
+<title>SIKAP - Kelola Target</title>
 <link rel="icon" href="assets/logo-lanri.png" type="image/x-icon">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/lucide@latest"></script>
@@ -30,17 +30,21 @@
     to { opacity: 0; transform: translateX(-10px); }
   }
 
-  /* Accordion detail expand */
+  /* Accordion */
   .detail-expand {
     max-height: 0;
     overflow: hidden;
     transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  .detail-expand.open {
-    max-height: 800px;
-  }
+  .detail-expand.open { max-height: 1200px; }
 
-  /* Chevron rotate */
+  .sub-expand {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .sub-expand.open { max-height: 800px; }
+
   .chevron-icon {
     transition: transform 0.3s ease;
   }
@@ -48,10 +52,8 @@
     transform: rotate(180deg);
   }
 
-  /* Row hover untuk baris utama yang bisa di-klik */
-  tr[data-target-id] {
-    cursor: pointer;
-  }
+  tr[data-target-id] { cursor: pointer; }
+  tr[data-komponen-key] { cursor: pointer; }
 </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -63,9 +65,10 @@
 <script>
   AUTH.requireRole(['keuangan']);
   let filterTahun = 2026;
-  const openDetails = new Set(); // Track target yang sedang dibuka
+  const openDetails = new Set();   // Track target expand (level 1)
+  const openKomponen = new Set();  // Track komponen expand (level 2)
 
-  // ============ FORMAT NOMINAL HELPERS ============
+  // ============ FORMAT HELPERS ============
   if (typeof formatNumberInput !== 'function') {
     window.formatNumberInput = function(value) {
       if (value === null || value === undefined || value === '') return '';
@@ -110,10 +113,23 @@
     };
   }
 
-  // ============ HELPER: TOTAL TARGET ============
+  // ============ HELPER: HITUNG TOTAL ============
+  /**
+   * Hitung nominal efektif dari 1 komponen:
+   * - Kalau punya subDetails → SUM subDetails
+   * - Kalau tidak → nominal langsung
+   */
+  function getKomponenNominal(d) {
+    if (!d) return 0;
+    if (d.subDetails && d.subDetails.length > 0) {
+      return d.subDetails.reduce((s, x) => s + (x.nominal || 0), 0);
+    }
+    return d.nominal || 0;
+  }
+
   function hitungTotalBulanan(target) {
     if (!target || !target.details) return 0;
-    return target.details.reduce((s, d) => s + (d.nominal || 0), 0);
+    return target.details.reduce((s, d) => s + getKomponenNominal(d), 0);
   }
 
   function hitungTotalTahunan(tahun) {
@@ -121,7 +137,7 @@
       .reduce((s, t) => s + hitungTotalBulanan(t), 0);
   }
 
-  // ============ RENDER UTAMA ============
+  // ============ RENDER ============
   function render() {
     const targets = DB.filter('targets', t => t.tahun === filterTahun).sort((a,b) => a.bulan - b.bulan);
     const totalTargetTahunan = hitungTotalTahunan(filterTahun);
@@ -133,7 +149,7 @@
       <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 class="text-2xl font-bold text-gray-800">Kelola Target</h2>
-          <p class="text-sm text-gray-500 mt-1">Target bulanan disusun dari komponen-komponen di dalamnya</p>
+          <p class="text-sm text-gray-500 mt-1">Target bulanan disusun dari komponen, dan komponen bisa punya distribusi detail</p>
         </div>
         <button onclick="openForm()" class="bg-blue-700 hover:bg-blue-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-md shadow-blue-200 flex items-center gap-2 transition">
           <i data-lucide="plus" class="w-4 h-4"></i> Tambah Target Bulanan
@@ -142,24 +158,9 @@
 
       <!-- Stat Cards -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6">
-        ${statCard({
-          label: 'Total Target ' + filterTahun,
-          value: formatRupiah(totalTargetTahunan),
-          icon: 'target',
-          color: 'blue'
-        })}
-        ${statCard({
-          label: 'Jumlah Bulan Terdaftar',
-          value: targets.length + ' bulan',
-          icon: 'calendar',
-          color: 'emerald'
-        })}
-        ${statCard({
-          label: 'Rata-rata per Bulan',
-          value: formatRupiah(rataRata),
-          icon: 'trending-up',
-          color: 'amber'
-        })}
+        ${statCard({ label: 'Total Target ' + filterTahun, value: formatRupiah(totalTargetTahunan), icon: 'target', color: 'blue' })}
+        ${statCard({ label: 'Jumlah Bulan Terdaftar', value: targets.length + ' bulan', icon: 'calendar', color: 'emerald' })}
+        ${statCard({ label: 'Rata-rata per Bulan', value: formatRupiah(rataRata), icon: 'trending-up', color: 'amber' })}
       </div>
 
       <!-- Info Konsep -->
@@ -168,10 +169,10 @@
           <i data-lucide="lightbulb" class="w-5 h-5"></i>
         </div>
         <div class="text-sm text-gray-700">
-          <p class="font-semibold text-blue-900 mb-1">Bagaimana target dihitung?</p>
+          <p class="font-semibold text-blue-900 mb-1">Struktur target 3 tingkat</p>
           <p class="text-xs leading-relaxed">
-            <b>Target Bulanan</b> = jumlah dari komponen di dalamnya (Gaji, Honor, Tukin, ATK, dll).
-            <b>Target Tahunan</b> = total dari semua target bulanan. Klik pada baris untuk melihat rincian komponen.
+            <b>Bulanan</b> → dijumlah dari komponen. <b>Komponen</b> (Gaji, Honor) → bisa punya <b>sub-distribusi</b>
+            (mis. Gaji → PNS Gol III/a, III/b). Klik baris atau komponen untuk expand.
           </p>
         </div>
       </div>
@@ -190,7 +191,7 @@
         </div>
       </div>
 
-      <!-- Tabel dengan Accordion Detail -->
+      <!-- Tabel -->
       <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
@@ -217,29 +218,77 @@
                   const detailCount = (t.details || []).length;
                   const isOpen = openDetails.has(t.id);
 
-                  // Sort details desc
-                  const sortedDetails = [...(t.details || [])].sort((a, b) => b.nominal - a.nominal);
+                  const sortedDetails = [...(t.details || [])].sort((a, b) =>
+                    getKomponenNominal(b) - getKomponenNominal(a)
+                  );
 
-                  const detailRowsHtml = sortedDetails.map(d => {
+                  // Build komponen rows (level 2 accordion)
+                  const komponenRowsHtml = sortedDetails.map((d, dIdx) => {
                     const kat = kategoriList.find(k => k.id === d.kategoriId);
-                    const pct = totalBulan > 0 ? ((d.nominal / totalBulan) * 100).toFixed(1) : 0;
+                    const nom = getKomponenNominal(d);
+                    const pct = totalBulan > 0 ? ((nom / totalBulan) * 100).toFixed(1) : 0;
+                    const hasSub = d.subDetails && d.subDetails.length > 0;
+                    const key = `${t.id}-${d.kategoriId}`;
+                    const isSubOpen = openKomponen.has(key);
+
+                    // Sub-distribution rows
+                    const subRowsHtml = hasSub ? d.subDetails.map(s => {
+                      const subPct = nom > 0 ? ((s.nominal / nom) * 100).toFixed(1) : 0;
+                      return `
+                        <tr class="border-b border-blue-50 last:border-0">
+                          <td class="py-2 pl-20 pr-3 text-left">
+                            <div class="flex items-center gap-2">
+                              <span class="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0"></span>
+                              <span class="text-xs text-gray-700">${s.label}</span>
+                            </div>
+                          </td>
+                          <td class="py-2 px-3 text-right font-mono text-xs text-gray-600 whitespace-nowrap">${formatRupiah(s.nominal)}</td>
+                          <td class="py-2 pl-3 pr-6 text-right text-[10px] text-gray-400 w-24">${subPct}%</td>
+                        </tr>`;
+                    }).join('') : '';
+
                     return `
-                      <tr class="border-b border-gray-100 last:border-0">
+                      <!-- Baris Komponen -->
+                      <tr class="border-b border-gray-100 ${hasSub ? 'cursor-pointer hover:bg-blue-100/40' : ''}"
+                          ${hasSub ? `data-komponen-key="${key}" onclick="event.stopPropagation(); toggleKomponen('${key}')"` : ''}>
                         <td class="py-2.5 pl-8 pr-3 text-left">
                           <div class="flex items-center gap-2">
                             <div class="w-7 h-7 rounded-md bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
                               ${kat ? (kat.kode || kat.nama.substring(0, 3)).substring(0, 3) : '???'}
                             </div>
                             <span class="text-sm font-medium text-gray-800">${kat ? kat.nama : 'Tidak diketahui'}</span>
+                            ${hasSub ? `
+                              <span class="text-[10px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded-full">
+                                ${d.subDetails.length} sub
+                              </span>
+                              <i data-lucide="chevron-down" class="chevron-icon w-3 h-3 text-blue-500 flex-shrink-0 ${isSubOpen ? 'rotate' : ''}"></i>
+                            ` : `
+                            `}
                           </div>
                         </td>
-                        <td class="py-2.5 px-3 text-right font-mono text-sm font-semibold text-blue-700 whitespace-nowrap">${formatRupiah(d.nominal)}</td>
+                        <td class="py-2.5 px-3 text-right font-mono text-sm font-semibold text-blue-700 whitespace-nowrap">${formatRupiah(nom)}</td>
                         <td class="py-2.5 pl-3 pr-6 text-right text-xs text-gray-500 w-24">${pct}%</td>
-                      </tr>`;
+                      </tr>
+
+                      <!-- Sub-distribution Expand -->
+                      ${hasSub ? `
+                        <tr data-sub-for="${key}" class="${isSubOpen ? '' : 'hidden'} bg-blue-50/40">
+                          <td colspan="3" class="p-0">
+                            <div class="sub-expand ${isSubOpen ? 'open' : ''}">
+                              <table class="w-full text-sm">
+                                <tbody>
+                                  ${subRowsHtml}
+                                </tbody>
+                              </table>
+                            </div>
+                          </td>
+                        </tr>
+                      ` : ''}
+                    `;
                   }).join('');
 
                   return `
-                    <!-- Baris Utama -->
+                    <!-- Baris Utama Bulan -->
                     <tr class="hover:bg-blue-50/40 transition"
                         data-target-id="${t.id}"
                         onclick="toggleDetail(${t.id})">
@@ -273,31 +322,27 @@
                             class="text-blue-700 hover:bg-blue-100 p-2 rounded-lg transition" title="Edit">
                             <i data-lucide="edit-3" class="w-4 h-4"></i>
                           </button>
-                          <!-- <button onclick="deleteItem(${t.id})"
-                            class="text-red-600 hover:bg-red-100 p-2 rounded-lg transition" title="Hapus">
-                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                          </button> -->
                         </div>
                       </td>
                     </tr>
 
-                    <!-- Baris Expand (Detail) -->
+                    <!-- Expand Detail Bulan -->
                     <tr data-expand-for="${t.id}" class="${isOpen ? '' : 'hidden'} bg-gradient-to-r from-blue-50/60 to-indigo-50/40">
                       <td colspan="5" class="p-0">
                         <div class="detail-expand ${isOpen ? 'open' : ''}">
                           <div class="px-6 py-4">
-                            <!-- Header Detail -->
                             <div class="flex items-center justify-between mb-3">
                               <div class="flex items-center gap-2">
                                 <i data-lucide="layers" class="w-4 h-4 text-blue-700"></i>
                                 <span class="text-xs font-bold text-blue-900 uppercase tracking-wide">
-                                  Rincian Komponen — ${monthName(t.bulan)} ${t.tahun}
+                                  Rincian Komponen - ${monthName(t.bulan)} ${t.tahun}
                                 </span>
                               </div>
-                              <span class="text-xs text-gray-500">${detailCount} item</span>
+                              <span class="text-xs text-gray-500">
+                                ${detailCount} komponen · klik komponen untuk lihat distribusi
+                              </span>
                             </div>
 
-                            <!-- Tabel Detail -->
                             <div class="bg-white rounded-lg border border-blue-100 overflow-hidden">
                               <table class="w-full text-sm">
                                 <thead class="bg-blue-50/70">
@@ -308,7 +353,7 @@
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  ${detailRowsHtml || '<tr><td colspan="3" class="text-center py-4 text-gray-400 text-xs">Tidak ada komponen</td></tr>'}
+                                  ${komponenRowsHtml || '<tr><td colspan="3" class="text-center py-4 text-gray-400 text-xs">Tidak ada komponen</td></tr>'}
                                 </tbody>
                                 <tfoot class="bg-blue-50 border-t-2 border-blue-200">
                                   <tr>
@@ -320,7 +365,6 @@
                               </table>
                             </div>
 
-                            <!-- Action buttons bawah -->
                             <div class="flex justify-end gap-2 mt-3">
                               <button onclick="event.stopPropagation(); openForm(${t.id})"
                                 class="text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5">
@@ -353,10 +397,9 @@
         </div>
       </div>
 
-      <!-- Footer Info -->
       <div class="mt-5 bg-blue-50 border-l-4 border-blue-700 p-4 rounded-r-lg text-sm text-blue-900 flex items-start gap-3">
         <i data-lucide="info" class="w-5 h-5 flex-shrink-0 mt-0.5"></i>
-        <span>Klik pada baris tabel untuk melihat rincian komponen. Bisa buka beberapa bulan sekaligus untuk perbandingan.</span>
+        <span>Klik baris bulan untuk lihat komponen. Klik komponen (yang punya tanda <b>chevron</b>) untuk lihat sub-distribusi.</span>
       </div>
     `;
 
@@ -366,13 +409,12 @@
   // ============ GANTI TAHUN ============
   function changeTahun(y) {
     filterTahun = Number(y);
-    openDetails.clear(); // reset expanded state
+    openDetails.clear();
+    openKomponen.clear();
     render();
   }
 
-  // ============================================================
-  // TOGGLE DETAIL (Accordion)
-  // ============================================================
+  // ============ TOGGLE LEVEL 1: Bulan ============
   function toggleDetail(targetId) {
     const row = document.querySelector(`tr[data-target-id="${targetId}"]`);
     const expandRow = document.querySelector(`tr[data-expand-for="${targetId}"]`);
@@ -383,22 +425,18 @@
     const isOpen = openDetails.has(targetId);
 
     if (isOpen) {
-      // Tutup
       openDetails.delete(targetId);
       container.classList.remove('open');
       if (chevron) chevron.classList.remove('rotate');
       row.classList.remove('bg-blue-50/60');
-      // Delay hide setelah animasi collapse selesai
       setTimeout(() => {
         if (!openDetails.has(targetId)) {
           expandRow.classList.add('hidden');
         }
       }, 350);
     } else {
-      // Buka
       openDetails.add(targetId);
       expandRow.classList.remove('hidden');
-      // Trigger reflow agar transition berjalan
       void container.offsetHeight;
       container.classList.add('open');
       if (chevron) chevron.classList.add('rotate');
@@ -406,8 +444,36 @@
     }
   }
 
+  // ============ TOGGLE LEVEL 2: Komponen ============
+  function toggleKomponen(key) {
+    const row = document.querySelector(`tr[data-komponen-key="${key}"]`);
+    const expandRow = document.querySelector(`tr[data-sub-for="${key}"]`);
+    if (!row || !expandRow) return;
+
+    const container = expandRow.querySelector('.sub-expand');
+    const chevron = row.querySelector('.chevron-icon');
+    const isOpen = openKomponen.has(key);
+
+    if (isOpen) {
+      openKomponen.delete(key);
+      container.classList.remove('open');
+      if (chevron) chevron.classList.remove('rotate');
+      setTimeout(() => {
+        if (!openKomponen.has(key)) {
+          expandRow.classList.add('hidden');
+        }
+      }, 300);
+    } else {
+      openKomponen.add(key);
+      expandRow.classList.remove('hidden');
+      void container.offsetHeight;
+      container.classList.add('open');
+      if (chevron) chevron.classList.add('rotate');
+    }
+  }
+
   // ============================================================
-  // KOMPONEN: DETAIL ROW (untuk form)
+  // KOMPONEN ROW untuk FORM (dengan sub-distribusi)
   // ============================================================
   function KomponenRow(detail, idx, kategoriList, usedIds) {
     const options = kategoriList.map(k => {
@@ -418,28 +484,68 @@
       </option>`;
     }).join('');
 
-    return `
-      <div class="detail-row detail-item flex items-center gap-2" data-idx="${idx}">
-        <select class="detail-kategori flex-1 px-2.5 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white">
-          <option value="">— Pilih Komponen —</option>
-          ${options}
-        </select>
-        <div class="relative w-48">
-          <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-semibold pointer-events-none select-none">Rp</span>
-          <input type="text" inputmode="numeric" autocomplete="off"
-            class="detail-nominal input-nominal w-full pl-8 pr-2 py-2 border border-gray-200 rounded-lg text-sm text-right font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            value="${formatNumberInput(detail.nominal)}" placeholder="0" />
+    const hasSub = detail.subDetails && detail.subDetails.length > 0;
+    const nominal = getKomponenNominal(detail);
+
+    const subRowsHtml = hasSub ? detail.subDetails.map((s, sIdx) => `
+      <div class="flex items-center gap-2 pl-10 pr-1">
+        <span class="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0"></span>
+        <input type="text" class="sub-label flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs"
+          value="${s.label || ''}" placeholder="Label distribusi" />
+        <div class="relative w-40">
+          <span class="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] font-semibold pointer-events-none">Rp</span>
+          <input type="text" inputmode="numeric"
+            class="sub-nominal input-nominal w-full pl-7 pr-2 py-1.5 border border-gray-200 rounded-lg text-xs text-right font-mono"
+            value="${formatNumberInput(s.nominal)}" placeholder="0" />
         </div>
-        <button type="button" onclick="removeDetailRow(this)"
-          class="text-red-500 hover:bg-red-50 p-2 rounded-lg transition flex-shrink-0" title="Hapus baris">
-          <i data-lucide="x" class="w-4 h-4"></i>
+        <button type="button" onclick="removeSubRow(this)"
+          class="text-red-400 hover:bg-red-50 p-1.5 rounded transition flex-shrink-0" title="Hapus distribusi">
+          <i data-lucide="x" class="w-3 h-3"></i>
         </button>
+      </div>
+    `).join('') : '';
+
+    return `
+      <div class="detail-row detail-item border border-gray-200 rounded-lg p-3 space-y-2" data-idx="${idx}">
+        <!-- Baris utama komponen -->
+        <div class="flex items-center gap-2">
+          <select class="detail-kategori flex-1 px-2.5 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white">
+            <option value="">- Pilih Komponen -</option>
+            ${options}
+          </select>
+          <div class="relative w-48">
+            <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-semibold pointer-events-none">Rp</span>
+            <input type="text" inputmode="numeric" autocomplete="off"
+              class="detail-nominal input-nominal w-full pl-8 pr-2 py-2 border border-gray-200 rounded-lg text-sm text-right font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent ${hasSub ? 'bg-gray-100 cursor-not-allowed' : ''}"
+              value="${formatNumberInput(nominal)}" placeholder="0" ${hasSub ? 'readonly title="Nominal dihitung otomatis dari sub-distribusi"' : ''} />
+          </div>
+          <button type="button" onclick="removeDetailRow(this)"
+            class="text-red-500 hover:bg-red-50 p-2 rounded-lg transition flex-shrink-0" title="Hapus komponen">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <!-- Toggle + tombol tambah sub -->
+        <div class="flex items-center justify-between pl-1">
+          <button type="button" onclick="toggleSubForm(this)"
+            class="text-[11px] font-semibold flex items-center gap-1 ${hasSub ? 'text-blue-700' : 'text-gray-500 hover:text-blue-700'}">
+            <i data-lucide="${hasSub ? 'chevron-up' : 'chevron-down'}" class="w-3 h-3 sub-toggle-icon"></i>
+            <span class="sub-toggle-label">${hasSub ? 'Sembunyikan distribusi (' + detail.subDetails.length + ')' : 'Tambah distribusi (opsional)'}</span>
+          </button>
+          <button type="button" onclick="addSubRow(this)"
+            class="text-[11px] bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold px-2 py-1 rounded transition flex items-center gap-1">
+            <i data-lucide="plus" class="w-3 h-3"></i> Sub
+          </button>
+        </div>
+
+        <!-- Container sub -->
+        <div class="sub-container space-y-1.5 ${hasSub ? '' : 'hidden'}">
+          ${subRowsHtml}
+        </div>
       </div>`;
   }
 
-  // ============================================================
-  // KOMPONEN: FORM HEADER
-  // ============================================================
+  // ============ FORM HEADER ============
   function KomponenFormHeader(t, filterTahun) {
     return `
       <div class="grid grid-cols-2 gap-3">
@@ -461,9 +567,7 @@
       </div>`;
   }
 
-  // ============================================================
-  // KOMPONEN: DETAIL LIST (untuk form)
-  // ============================================================
+  // ============ DETAIL LIST untuk FORM ============
   function KomponenDetailList(details, kategoriList) {
     const usedIds = details.map(d => d.kategoriId).filter(Boolean);
     return `
@@ -476,7 +580,7 @@
           </button>
         </div>
 
-        <div id="detail-container" class="space-y-2 max-h-72 overflow-y-auto pr-1">
+        <div id="detail-container" class="space-y-3 max-h-96 overflow-y-auto pr-1">
           ${details.map((d, idx) =>
             KomponenRow(d, idx, kategoriList, usedIds.filter(id => id !== d.kategoriId))
           ).join('')}
@@ -484,16 +588,14 @@
 
         <div class="mt-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-lg p-3 flex items-center justify-between">
           <span class="text-sm font-semibold text-blue-900 flex items-center gap-2">
-            <i class="w-4 h-4"></i> Total Target Bulanan
+            <i data-lucide="sigma" class="w-4 h-4"></i> Total Target Bulanan
           </span>
           <span id="f-total" class="text-lg font-bold text-blue-800 font-mono">Rp 0</span>
         </div>
       </div>`;
   }
 
-  // ============================================================
-  // FORM OPEN (CREATE/EDIT)
-  // ============================================================
+  // ============ FORM OPEN (CREATE/EDIT) ============
   function openForm(id) {
     const t = id ? DB.find('targets', x => x.id === id) : null;
     const db = DB.load();
@@ -503,12 +605,10 @@
       Swal.fire({
         icon: 'warning',
         title: 'Master Kategori Kosong',
-        html: `
-          <div class="text-sm text-gray-600 text-left">
-            <p class="mb-3">Belum ada kategori target di master data. Hubungi Admin untuk menambahkannya.</p>
-            <p class="text-xs bg-gray-50 rounded p-2 font-mono">Admin → Master Data → Kategori Target</p>
-          </div>
-        `,
+        html: `<div class="text-sm text-gray-600 text-left">
+          <p class="mb-3">Belum ada kategori target di master data. Hubungi Admin.</p>
+          <p class="text-xs bg-gray-50 rounded p-2 font-mono">Admin → Master Data → Kategori Target</p>
+        </div>`,
         confirmButtonText: 'Mengerti'
       });
       return;
@@ -516,11 +616,11 @@
 
     const initialDetails = t && t.details && t.details.length > 0
       ? JSON.parse(JSON.stringify(t.details))
-      : [{ kategoriId: kategoriList[0]?.id || '', nominal: 0 }];
+      : [{ kategoriId: kategoriList[0]?.id || '', nominal: 0, subDetails: [] }];
 
     Swal.fire({
       title: t ? 'Edit Target Bulanan' : 'Tambah Target Bulanan',
-      width: 720,
+      width: 780,
       html: `
         <div class="text-left space-y-4 text-sm mt-2">
           ${KomponenFormHeader(t, filterTahun)}
@@ -561,19 +661,50 @@
 
         rows.forEach((row, idx) => {
           const kategoriId = Number(row.querySelector('.detail-kategori').value);
-          const nominal = parseNumberInput(row.querySelector('.detail-nominal').value);
-
           if (!kategoriId) {
             valid = false;
-            errMsg = `Baris ${idx + 1}: Kategori belum dipilih`;
+            errMsg = `Komponen ${idx + 1}: Kategori belum dipilih`;
             return;
           }
-          if (nominal <= 0) {
-            valid = false;
-            errMsg = `Baris ${idx + 1}: Nominal harus lebih dari 0`;
-            return;
+
+          // Cek apakah ada subDetails
+          const subRows = row.querySelectorAll('.sub-container > div');
+          const subDetails = [];
+          subRows.forEach((sr, sIdx) => {
+            const labelEl = sr.querySelector('.sub-label');
+            const nomEl = sr.querySelector('.sub-nominal');
+            if (!labelEl || !nomEl) return;
+            const label = labelEl.value.trim();
+            const nominal = parseNumberInput(nomEl.value);
+            if (!label) {
+              valid = false;
+              errMsg = `Komponen ${idx + 1} → Sub ${sIdx + 1}: Label wajib diisi`;
+              return;
+            }
+            if (nominal <= 0) {
+              valid = false;
+              errMsg = `Komponen ${idx + 1} → Sub "${label}": Nominal harus > 0`;
+              return;
+            }
+            subDetails.push({ label, nominal });
+          });
+
+          if (!valid) return;
+
+          if (subDetails.length > 0) {
+            // Punya sub-distribusi → nominal auto
+            const nominal = subDetails.reduce((s, x) => s + x.nominal, 0);
+            details.push({ kategoriId, nominal, subDetails });
+          } else {
+            // Tanpa sub → nominal manual
+            const nominal = parseNumberInput(row.querySelector('.detail-nominal').value);
+            if (nominal <= 0) {
+              valid = false;
+              errMsg = `Komponen ${idx + 1}: Nominal harus > 0 (atau isi distribusi)`;
+              return;
+            }
+            details.push({ kategoriId, nominal, subDetails: [] });
           }
-          details.push({ kategoriId, nominal });
         });
 
         if (!valid) {
@@ -589,7 +720,7 @@
         const dupe = kategoriIds.find((k, i) => kategoriIds.indexOf(k) !== i);
         if (dupe) {
           const kat = kategoriList.find(x => x.id === dupe);
-          Swal.showValidationMessage(`Komponen "${kat.nama}" duplikat. Hapus salah satu.`);
+          Swal.showValidationMessage(`Komponen "${kat.nama}" duplikat.`);
           return false;
         }
 
@@ -600,7 +731,7 @@
       const data = r.value;
       const db = DB.load();
       const unit = AUTH.currentUser().unit || 'Bagian Keuangan';
-      const totalNominal = data.details.reduce((s, d) => s + d.nominal, 0);
+      const totalNominal = data.details.reduce((s, d) => s + getKomponenNominal(d), 0);
 
       if (t) {
         const idx = db.targets.findIndex(x => x.id === id);
@@ -611,11 +742,10 @@
           action: 'UPDATE',
           module: 'Target',
           recordId: `TGT-${String(id).padStart(5, '0')}`,
-          before: `${monthName(t.bulan)} ${t.tahun} — ${formatRupiah(beforeTotal)}`,
-          after: `${monthName(data.bulan)} ${data.tahun} — ${formatRupiah(totalNominal)} (${data.details.length} komponen)`
+          before: `${monthName(t.bulan)} ${t.tahun} - ${formatRupiah(beforeTotal)}`,
+          after: `${monthName(data.bulan)} ${data.tahun} - ${formatRupiah(totalNominal)} (${data.details.length} komponen)`
         });
         toastSuccess('Target berhasil diupdate');
-        // Auto-open detail jika sedang diedit
         if (!openDetails.has(id)) openDetails.add(id);
       } else {
         if (db.targets.some(x => x.tahun === data.tahun && x.bulan === data.bulan)) {
@@ -630,10 +760,9 @@
           action: 'CREATE',
           module: 'Target',
           recordId: `TGT-${String(newId).padStart(5, '0')}`,
-          after: `${monthName(data.bulan)} ${data.tahun} — ${formatRupiah(totalNominal)} (${data.details.length} komponen)`
+          after: `${monthName(data.bulan)} ${data.tahun} - ${formatRupiah(totalNominal)} (${data.details.length} komponen)`
         });
         toastSuccess('Target bulanan berhasil ditambahkan');
-        // Auto-open detail untuk target baru
         openDetails.add(newId);
       }
       render();
@@ -641,7 +770,7 @@
   }
 
   // ============================================================
-  // DETAIL ROW ACTIONS (Form)
+  // DETAIL ROW ACTIONS
   // ============================================================
   function addDetailRow() {
     const container = document.getElementById('detail-container');
@@ -655,7 +784,7 @@
     const available = kategoriList.find(k => !usedIds.includes(k.id));
 
     const html = KomponenRow(
-      { kategoriId: available ? available.id : '', nominal: 0 },
+      { kategoriId: available ? available.id : '', nominal: 0, subDetails: [] },
       container.children.length,
       kategoriList,
       usedIds
@@ -665,10 +794,6 @@
     if (window.lucide) lucide.createIcons();
     attachAllDetailEvents();
     updateTotal();
-
-    const rows = container.querySelectorAll('.detail-row');
-    const lastRow = rows[rows.length - 1];
-    if (lastRow) lastRow.querySelector('.detail-nominal').focus();
   }
 
   function removeDetailRow(btn) {
@@ -686,23 +811,167 @@
     }, 150);
   }
 
+  // ============ SUB ROW ACTIONS ============
+  function addSubRow(btn) {
+    const row = btn.closest('.detail-row');
+    if (!row) return;
+    const container = row.querySelector('.sub-container');
+    if (!container) return;
+
+    // Buka container
+    container.classList.remove('hidden');
+
+    // Tambah baris sub
+    const subHtml = `
+      <div class="flex items-center gap-2 pl-10 pr-1">
+        <span class="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0"></span>
+        <input type="text" class="sub-label flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs"
+          value="" placeholder="Label distribusi" />
+        <div class="relative w-40">
+          <span class="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] font-semibold pointer-events-none">Rp</span>
+          <input type="text" inputmode="numeric"
+            class="sub-nominal input-nominal w-full pl-7 pr-2 py-1.5 border border-gray-200 rounded-lg text-xs text-right font-mono"
+            value="" placeholder="0" />
+        </div>
+        <button type="button" onclick="removeSubRow(this)"
+          class="text-red-400 hover:bg-red-50 p-1.5 rounded transition flex-shrink-0" title="Hapus distribusi">
+          <i data-lucide="x" class="w-3 h-3"></i>
+        </button>
+      </div>`;
+    container.insertAdjacentHTML('beforeend', subHtml);
+
+    // Update toggle label
+    const toggleBtn = row.querySelector('.sub-toggle-label');
+    const count = container.children.length;
+    if (toggleBtn) toggleBtn.textContent = `Sembunyikan distribusi (${count})`;
+
+    // Update chevron toggle state
+    const toggleIcon = row.querySelector('.sub-toggle-icon');
+    if (toggleIcon) {
+      toggleIcon.setAttribute('data-lucide', 'chevron-up');
+    }
+
+    // Nominal komponen jadi readonly
+    const nomEl = row.querySelector('.detail-nominal');
+    if (nomEl) {
+      nomEl.classList.add('bg-gray-100', 'cursor-not-allowed');
+      nomEl.readOnly = true;
+      nomEl.title = 'Nominal dihitung otomatis dari sub-distribusi';
+    }
+
+    if (window.lucide) lucide.createIcons();
+    attachSubEvents(row);
+    updateTotal();
+
+    // Focus ke sub label
+    const subs = container.querySelectorAll('.sub-label');
+    if (subs.length > 0) subs[subs.length - 1].focus();
+  }
+
+  function removeSubRow(btn) {
+    const subRow = btn.closest('div.flex');
+    if (!subRow) return;
+    const komponenRow = btn.closest('.detail-row');
+    const container = subRow.parentElement;
+
+    subRow.remove();
+    updateTotal();
+
+    // Kalau sub kosong, balikkan nominal jadi editable
+    if (container && container.children.length === 0) {
+      container.classList.add('hidden');
+      const nomEl = komponenRow?.querySelector('.detail-nominal');
+      if (nomEl) {
+        nomEl.classList.remove('bg-gray-100', 'cursor-not-allowed');
+        nomEl.readOnly = false;
+        nomEl.title = '';
+      }
+      const toggleBtn = komponenRow?.querySelector('.sub-toggle-label');
+      if (toggleBtn) toggleBtn.textContent = 'Tambah distribusi (opsional)';
+      const toggleIcon = komponenRow?.querySelector('.sub-toggle-icon');
+      if (toggleIcon) toggleIcon.setAttribute('data-lucide', 'chevron-down');
+      if (window.lucide) lucide.createIcons();
+    } else {
+      const toggleBtn = komponenRow?.querySelector('.sub-toggle-label');
+      if (toggleBtn) toggleBtn.textContent = `Sembunyikan distribusi (${container.children.length})`;
+    }
+  }
+
+  function toggleSubForm(btn) {
+    const row = btn.closest('.detail-row');
+    if (!row) return;
+    const container = row.querySelector('.sub-container');
+    const icon = row.querySelector('.sub-toggle-icon');
+    const label = row.querySelector('.sub-toggle-label');
+    if (!container) return;
+
+    const isHidden = container.classList.contains('hidden');
+    if (isHidden) {
+      container.classList.remove('hidden');
+      if (icon) icon.setAttribute('data-lucide', 'chevron-up');
+      if (label) {
+        const count = container.children.length;
+        label.textContent = count > 0 ? `Sembunyikan distribusi (${count})` : 'Sembunyikan distribusi';
+      }
+    } else {
+      container.classList.add('hidden');
+      if (icon) icon.setAttribute('data-lucide', 'chevron-down');
+      if (label) {
+        const count = container.children.length;
+        label.textContent = count > 0 ? `Tambah distribusi (opsional) - ${count} item` : 'Tambah distribusi (opsional)';
+      }
+    }
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // ============ ATTACH EVENTS ============
   function attachAllDetailEvents() {
     document.querySelectorAll('#detail-container .detail-row').forEach(row => {
-      const nomEl = row.querySelector('.detail-nominal');
-      if (nomEl && !nomEl.dataset.bound) {
-        attachNumberFormat(nomEl);
-        nomEl.addEventListener('input', updateTotal);
-        nomEl.dataset.bound = '1';
-      }
-      const katEl = row.querySelector('.detail-kategori');
-      if (katEl && !katEl.dataset.bound) {
-        katEl.addEventListener('change', () => {
-          refreshOptions();
+      attachRowEvents(row);
+    });
+  }
+
+  function attachRowEvents(row) {
+    const nomEl = row.querySelector('.detail-nominal');
+    if (nomEl && !nomEl.dataset.bound) {
+      attachNumberFormat(nomEl);
+      nomEl.addEventListener('input', updateTotal);
+      nomEl.dataset.bound = '1';
+    }
+    const katEl = row.querySelector('.detail-kategori');
+    if (katEl && !katEl.dataset.bound) {
+      katEl.addEventListener('change', () => {
+        refreshOptions();
+      });
+      katEl.dataset.bound = '1';
+    }
+    // Bind sub inputs
+    attachSubEvents(row);
+  }
+
+  function attachSubEvents(row) {
+    row.querySelectorAll('.sub-nominal').forEach(inp => {
+      if (!inp.dataset.bound) {
+        attachNumberFormat(inp);
+        inp.addEventListener('input', () => {
+          syncNominalFromSub(row);
           updateTotal();
         });
-        katEl.dataset.bound = '1';
+        inp.dataset.bound = '1';
       }
     });
+  }
+
+  // Auto-update nominal komponen dari sub
+  function syncNominalFromSub(row) {
+    const container = row.querySelector('.sub-container');
+    if (!container || container.children.length === 0) return;
+    let total = 0;
+    container.querySelectorAll('.sub-nominal').forEach(inp => {
+      total += parseNumberInput(inp.value);
+    });
+    const nomEl = row.querySelector('.detail-nominal');
+    if (nomEl) nomEl.value = formatNumberInput(total);
   }
 
   function refreshOptions() {
@@ -731,32 +1000,36 @@
     const totalEl = document.getElementById('f-total');
     if (!totalEl) return;
     let total = 0;
-    document.querySelectorAll('#detail-container .detail-nominal').forEach(inp => {
-      total += parseNumberInput(inp.value);
+    document.querySelectorAll('#detail-container .detail-row').forEach(row => {
+      const subContainer = row.querySelector('.sub-container');
+      const hasSub = subContainer && subContainer.children.length > 0 && !subContainer.classList.contains('hidden');
+      if (hasSub) {
+        subContainer.querySelectorAll('.sub-nominal').forEach(inp => {
+          total += parseNumberInput(inp.value);
+        });
+      } else {
+        const nomEl = row.querySelector('.detail-nominal');
+        if (nomEl) total += parseNumberInput(nomEl.value);
+      }
     });
     totalEl.textContent = formatRupiah(total);
   }
 
-  // ============================================================
-  // DELETE
-  // ============================================================
+  // ============ DELETE ============
   function deleteItem(id) {
     const t = DB.find('targets', x => x.id === id);
     const total = hitungTotalBulanan(t);
     const detailCount = (t.details || []).length;
 
-    let htmlMsg = `
-      <div class="text-sm text-gray-600 space-y-2">
+    swalTheme.fire({
+      title: 'Hapus Target Bulanan?',
+      html: `<div class="text-sm text-gray-600 space-y-2">
         <p>Target <b>${monthName(t.bulan)} ${t.tahun}</b> akan dihapus permanen.</p>
         <div class="bg-gray-50 rounded-lg p-3 text-xs space-y-1">
           <div class="flex justify-between"><span>Total Target:</span><b class="text-blue-700">${formatRupiah(total)}</b></div>
           <div class="flex justify-between"><span>Komponen:</span><b>${detailCount} item</b></div>
         </div>
-      </div>`;
-
-    swalTheme.fire({
-      title: 'Hapus Target Bulanan?',
-      html: htmlMsg,
+      </div>`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonText: 'Ya, Hapus',
@@ -773,7 +1046,7 @@
         action: 'DELETE',
         module: 'Target',
         recordId: `TGT-${String(id).padStart(5, '0')}`,
-        before: `${monthName(t.bulan)} ${t.tahun} — ${formatRupiah(total)}`,
+        before: `${monthName(t.bulan)} ${t.tahun} - ${formatRupiah(total)}`,
         after: '-'
       });
 

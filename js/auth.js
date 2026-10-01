@@ -1,5 +1,5 @@
 // ============================================================
-// SIKAP — Authentication & Layout Builder
+// SIKAP - Authentication & Layout Builder
 // Sistem Informasi Keuangan & Anggaran Pusjar SKMP
 // ============================================================
 
@@ -116,7 +116,7 @@ const AUTH = {
 };
 
 // ============================================================
-// MENU CONFIG — Berkomponen (Section + Items + SubItems)
+// MENU CONFIG - Berkomponen (Section + Items + SubItems)
 // ============================================================
 /**
  * Struktur menu:
@@ -128,9 +128,9 @@ const AUTH = {
  *       href: 'page.html',
  *       icon: 'lucide-icon',
  *       label: 'Label Menu',
- *       badge: '5',            // opsional — badge angka/teks
- *       badgeColor: 'red',     // opsional — warna badge
- *       subItems: [            // opsional — submenu
+ *       badge: '5',            // opsional - badge angka/teks
+ *       badgeColor: 'red',     // opsional - warna badge
+ *       subItems: [            // opsional - submenu
  *         { href: 'page.html?tab=x', label: 'Sub Menu', icon: 'circle' }
  *       ]
  *     }
@@ -227,7 +227,7 @@ const MENU_CONFIG = {
 };
 
 // ============================================================
-// SIDEBAR COMPONENT — BRAND HEADER
+// SIDEBAR COMPONENT - BRAND HEADER
 // ============================================================
 function SidebarBrand() {
   return `
@@ -244,7 +244,7 @@ function SidebarBrand() {
 }
 
 // ============================================================
-// SIDEBAR COMPONENT — SECTION HEADER
+// SIDEBAR COMPONENT - SECTION HEADER
 // ============================================================
 function SidebarSectionHeader({ section, icon }) {
   return `
@@ -255,7 +255,7 @@ function SidebarSectionHeader({ section, icon }) {
 }
 
 // ============================================================
-// SIDEBAR COMPONENT — MENU ITEM
+// SIDEBAR COMPONENT - MENU ITEM
 // ============================================================
 function SidebarItem({ item, isActive }) {
   const baseCls = 'flex items-center gap-3 px-5 py-2.5 text-sm border-l-4 transition group';
@@ -285,7 +285,7 @@ function SidebarItem({ item, isActive }) {
 }
 
 // ============================================================
-// SIDEBAR COMPONENT — MENU ITEM DENGAN SUBMENU
+// SIDEBAR COMPONENT - MENU ITEM DENGAN SUBMENU
 // ============================================================
 function SidebarItemWithSub({ item, isActive, isOpen }) {
   const baseCls = 'flex items-center gap-3 px-5 py-2.5 text-sm border-l-4 transition cursor-pointer';
@@ -322,7 +322,7 @@ function SidebarItemWithSub({ item, isActive, isOpen }) {
 }
 
 // ============================================================
-// SIDEBAR COMPONENT — USER CARD
+// SIDEBAR COMPONENT - USER CARD
 // ============================================================
 function SidebarUserCard(u) {
   const roleLabel = u.role === 'admin' ? 'Administrator'
@@ -345,7 +345,7 @@ function SidebarUserCard(u) {
 }
 
 // ============================================================
-// UTIL — CEK PATH AKTIF
+// UTIL - CEK PATH AKTIF
 // ============================================================
 function isActivePath(href) {
   if (!href) return false;
@@ -432,7 +432,7 @@ function buildSidebar(activePage) {
 }
 
 // ============================================================
-// TOPBAR COMPONENT — BRAND
+// TOPBAR COMPONENT - BRAND
 // ============================================================
 function TopbarBrand() {
   return `
@@ -451,7 +451,7 @@ function TopbarBrand() {
 }
 
 // ============================================================
-// TOPBAR COMPONENT — USER ACTIONS
+// TOPBAR COMPONENT - USER ACTIONS
 // ============================================================
 function TopbarUserActions(u) {
   return `

@@ -1,5 +1,5 @@
 // ============================================================
-// DATABASE LAYER (localStorage) — pengganti backend sementara
+// DATABASE LAYER (localStorage) - pengganti backend sementara
 // ============================================================
 
 const DB_KEY = 'keu_pusjar_db_v1';

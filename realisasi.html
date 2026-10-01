@@ -99,7 +99,7 @@
             <select id="f-target" class="w-full px-3 py-2 border border-gray-200 rounded-lg" ${r ? 'disabled' : ''}>
               ${targets.map(t => `
                 <option value="${t.id}" ${r?.targetId === t.id ? 'selected' : ''}>
-                  ${monthName(t.bulan)} ${t.tahun} — Target ${formatRupiah(t.nominal)}
+                  ${monthName(t.bulan)} ${t.tahun} - Target ${formatRupiah(t.nominal)}
                 </option>`).join('')}
             </select>
           </div>
