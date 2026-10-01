@@ -228,17 +228,7 @@
           </table>
         </div>
       </div>
-
       ${isComplexTab ? `
-        <div class="mt-5 bg-blue-50 border-l-4 border-blue-700 p-4 rounded-r-lg text-sm text-blue-900 flex items-start gap-3">
-          <i data-lucide="info" class="w-5 h-5 flex-shrink-0 mt-0.5"></i>
-          <span>
-            <b>${tabDef.label}</b> digunakan saat input Target &amp; Realisasi.
-            ${activeTab === 'program' ? 'Setiap program punya kode unik.' : ''}
-            ${activeTab === 'subKegiatan' ? 'Sub-kegiatan terkait ke program - kode bisa sama antar program.' : ''}
-            ${activeTab === 'komponenBelanja' ? 'Komponen belanja adalah jenis pengeluaran (Belanja Bahan, Honor, dll).' : ''}
-          </span>
-        </div>
       ` : ''}
     `;
 
