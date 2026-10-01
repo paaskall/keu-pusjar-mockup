@@ -86,25 +86,6 @@
           }).join('')}
         </ul>
       </div>
-
-      <div class="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-        <h3 class="font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <i data-lucide="pie-chart" class="w-5 h-5 text-blue-700"></i> Distribusi Modul Log
-        </h3>
-        ${(() => {
-          const modulCount = {};
-          db.auditTrail.forEach(l => { modulCount[l.module] = (modulCount[l.module] || 0) + 1; });
-          const max = Math.max(...Object.values(modulCount), 1);
-          return Object.entries(modulCount).map(([m, c]) => `
-            <div class="flex items-center gap-3 mb-3 text-xs">
-              <span class="w-24 text-gray-600 font-medium">${m}</span>
-              <div class="flex-1 bg-gray-100 rounded-full h-2.5 overflow-hidden">
-                <div class="bg-gradient-to-r from-blue-700 to-blue-500 h-full rounded-full" style="width:${(c/max)*100}%"></div>
-              </div>
-              <span class="w-8 text-right font-bold text-blue-700">${c}</span>
-            </div>`).join('');
-        })()}
-      </div>
     </div>
 
     <div class="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
