@@ -1,12 +1,16 @@
 // ============================================================
-// DATABASE LAYER (localStorage) - pengganti backend sementara
+// SIKAP — Database Layer (localStorage)
+// Sistem Informasi Keuangan & Anggaran Pusjar SKMP
 // ============================================================
 
 const DB_KEY = 'keu_pusjar_db_v1';
 const SESSION_KEY = 'keu_pusjar_session';
 
-// ============ SEED DATA ============
+// ============================================================
+// SEED DATA — Data awal untuk demo
+// ============================================================
 const SEED = {
+  // ============ USERS ============
   users: [
     { id: 1, username: 'admin', password: 'admin', name: 'Siti', role: 'admin', unit: 'Bagian Umum', active: true },
     { id: 2, username: 'keuangan', password: 'keuangan', name: 'Ahmad', role: 'keuangan', unit: 'Bagian Keuangan', active: true },
@@ -14,6 +18,7 @@ const SEED = {
     { id: 4, username: 'pimpinan', password: 'pimpinan', name: 'Pimpinan', role: 'pimpinan', unit: '-', active: true }
   ],
 
+  // ============ MASTER DATA ============
   master: {
     jenisPengadaan: [
       { id: 1, nama: 'Kontrak' },
@@ -43,7 +48,6 @@ const SEED = {
       { id: 3, nama: 'Anggaran' },
       { id: 4, nama: 'SDM' }
     ],
-
     kategoriTarget: [
       { id: 1, nama: 'Gaji', kode: 'GAJI' },
       { id: 2, nama: 'Honor', kode: 'HONOR' },
@@ -55,118 +59,174 @@ const SEED = {
     ]
   },
 
+  // ============ TARGETS ============
+  // Struktur: setiap target bulanan punya `details` array
+  // Setiap detail bisa punya `subDetails` (distribusi opsional)
+  // Kalau `subDetails` ada isinya → nominal auto-hitung dari SUM subDetails
   targets: [
-    // Setiap target bulanan punya "details" array
+    // --- JANUARI: dengan sub-distribusi lengkap ---
     {
       id: 1, tahun: 2026, bulan: 1, unit: 'Bagian Keuangan',
       details: [
-        { kategoriId: 1, nominal: 500000000 },  // Gaji
-        { kategoriId: 2, nominal: 100000000 },  // Honor
-        { kategoriId: 3, nominal: 150000000 },  // Tukin
-        { kategoriId: 4, nominal: 100000000 }   // ATK
+        {
+          kategoriId: 1,  // Gaji
+          nominal: 500000000,
+          subDetails: [
+            { label: 'PNS Gol III/a', nominal: 150000000 },
+            { label: 'PNS Gol III/b', nominal: 150000000 },
+            { label: 'PNS Gol IV/a', nominal: 100000000 },
+            { label: 'PPPK', nominal: 100000000 }
+          ]
+        },
+        {
+          kategoriId: 2,  // Honor
+          nominal: 100000000,
+          subDetails: [
+            { label: 'Honor Narasumber', nominal: 60000000 },
+            { label: 'Honor Panitia', nominal: 40000000 }
+          ]
+        },
+        {
+          kategoriId: 3,  // Tukin
+          nominal: 150000000,
+          subDetails: [
+            { label: 'Kelas Jabatan 5', nominal: 50000000 },
+            { label: 'Kelas Jabatan 6', nominal: 50000000 },
+            { label: 'Kelas Jabatan 7', nominal: 50000000 }
+          ]
+        },
+        {
+          kategoriId: 4,  // ATK
+          nominal: 100000000,
+          subDetails: []
+        }
       ]
     },
+
+    // --- FEBRUARI: sebagian punya sub, sebagian tidak ---
     {
       id: 2, tahun: 2026, bulan: 2, unit: 'Bagian Keuangan',
       details: [
-        { kategoriId: 1, nominal: 500000000 },
-        { kategoriId: 2, nominal: 100000000 },
-        { kategoriId: 3, nominal: 150000000 },
-        { kategoriId: 4, nominal: 50000000 }
+        {
+          kategoriId: 1,  // Gaji — tanpa sub
+          nominal: 500000000,
+          subDetails: []
+        },
+        {
+          kategoriId: 2,  // Honor — dengan sub
+          nominal: 100000000,
+          subDetails: [
+            { label: 'Honor Narasumber', nominal: 70000000 },
+            { label: 'Honor Panitia', nominal: 30000000 }
+          ]
+        },
+        {
+          kategoriId: 3,  // Tukin
+          nominal: 150000000,
+          subDetails: []
+        },
+        {
+          kategoriId: 4,  // ATK
+          nominal: 50000000,
+          subDetails: []
+        }
       ]
     },
+
+    // --- MARET s/d DESEMBER: tanpa subDetails (flat) ---
     {
       id: 3, tahun: 2026, bulan: 3, unit: 'Bagian Keuangan',
       details: [
-        { kategoriId: 1, nominal: 500000000 },
-        { kategoriId: 2, nominal: 100000000 },
-        { kategoriId: 3, nominal: 150000000 },
-        { kategoriId: 4, nominal: 80000000 }
+        { kategoriId: 1, nominal: 500000000, subDetails: [] },
+        { kategoriId: 2, nominal: 100000000, subDetails: [] },
+        { kategoriId: 3, nominal: 150000000, subDetails: [] },
+        { kategoriId: 4, nominal: 80000000,  subDetails: [] }
       ]
     },
     {
       id: 4, tahun: 2026, bulan: 4, unit: 'Bagian Keuangan',
       details: [
-        { kategoriId: 1, nominal: 500000000 },
-        { kategoriId: 2, nominal: 120000000 },
-        { kategoriId: 3, nominal: 150000000 },
-        { kategoriId: 4, nominal: 80000000 }
+        { kategoriId: 1, nominal: 500000000, subDetails: [] },
+        { kategoriId: 2, nominal: 120000000, subDetails: [] },
+        { kategoriId: 3, nominal: 150000000, subDetails: [] },
+        { kategoriId: 4, nominal: 80000000,  subDetails: [] }
       ]
     },
     {
       id: 5, tahun: 2026, bulan: 5, unit: 'Bagian Keuangan',
       details: [
-        { kategoriId: 1, nominal: 500000000 },
-        { kategoriId: 2, nominal: 100000000 },
-        { kategoriId: 3, nominal: 150000000 },
-        { kategoriId: 4, nominal: 30000000 }
+        { kategoriId: 1, nominal: 500000000, subDetails: [] },
+        { kategoriId: 2, nominal: 100000000, subDetails: [] },
+        { kategoriId: 3, nominal: 150000000, subDetails: [] },
+        { kategoriId: 4, nominal: 30000000,  subDetails: [] }
       ]
     },
     {
       id: 6, tahun: 2026, bulan: 6, unit: 'Bagian Keuangan',
       details: [
-        { kategoriId: 1, nominal: 500000000 },
-        { kategoriId: 2, nominal: 100000000 },
-        { kategoriId: 3, nominal: 150000000 },
-        { kategoriId: 4, nominal: 100000000 }
+        { kategoriId: 1, nominal: 500000000, subDetails: [] },
+        { kategoriId: 2, nominal: 100000000, subDetails: [] },
+        { kategoriId: 3, nominal: 150000000, subDetails: [] },
+        { kategoriId: 4, nominal: 100000000, subDetails: [] }
       ]
     },
     {
       id: 7, tahun: 2026, bulan: 7, unit: 'Bagian Keuangan',
       details: [
-        { kategoriId: 1, nominal: 500000000 },
-        { kategoriId: 2, nominal: 100000000 },
-        { kategoriId: 3, nominal: 150000000 },
-        { kategoriId: 4, nominal: 100000000 }
+        { kategoriId: 1, nominal: 500000000, subDetails: [] },
+        { kategoriId: 2, nominal: 100000000, subDetails: [] },
+        { kategoriId: 3, nominal: 150000000, subDetails: [] },
+        { kategoriId: 4, nominal: 100000000, subDetails: [] }
       ]
     },
     {
       id: 8, tahun: 2026, bulan: 8, unit: 'Bagian Keuangan',
       details: [
-        { kategoriId: 1, nominal: 500000000 },
-        { kategoriId: 2, nominal: 100000000 },
-        { kategoriId: 3, nominal: 150000000 },
-        { kategoriId: 4, nominal: 100000000 }
+        { kategoriId: 1, nominal: 500000000, subDetails: [] },
+        { kategoriId: 2, nominal: 100000000, subDetails: [] },
+        { kategoriId: 3, nominal: 150000000, subDetails: [] },
+        { kategoriId: 4, nominal: 100000000, subDetails: [] }
       ]
     },
     {
       id: 9, tahun: 2026, bulan: 9, unit: 'Bagian Keuangan',
       details: [
-        { kategoriId: 1, nominal: 500000000 },
-        { kategoriId: 2, nominal: 100000000 },
-        { kategoriId: 3, nominal: 150000000 },
-        { kategoriId: 4, nominal: 100000000 }
+        { kategoriId: 1, nominal: 500000000, subDetails: [] },
+        { kategoriId: 2, nominal: 100000000, subDetails: [] },
+        { kategoriId: 3, nominal: 150000000, subDetails: [] },
+        { kategoriId: 4, nominal: 100000000, subDetails: [] }
       ]
     },
     {
       id: 10, tahun: 2026, bulan: 10, unit: 'Bagian Keuangan',
       details: [
-        { kategoriId: 1, nominal: 500000000 },
-        { kategoriId: 2, nominal: 100000000 },
-        { kategoriId: 3, nominal: 150000000 },
-        { kategoriId: 4, nominal: 100000000 }
+        { kategoriId: 1, nominal: 500000000, subDetails: [] },
+        { kategoriId: 2, nominal: 100000000, subDetails: [] },
+        { kategoriId: 3, nominal: 150000000, subDetails: [] },
+        { kategoriId: 4, nominal: 100000000, subDetails: [] }
       ]
     },
     {
       id: 11, tahun: 2026, bulan: 11, unit: 'Bagian Keuangan',
       details: [
-        { kategoriId: 1, nominal: 500000000 },
-        { kategoriId: 2, nominal: 100000000 },
-        { kategoriId: 3, nominal: 150000000 },
-        { kategoriId: 4, nominal: 50000000 }
+        { kategoriId: 1, nominal: 500000000, subDetails: [] },
+        { kategoriId: 2, nominal: 100000000, subDetails: [] },
+        { kategoriId: 3, nominal: 150000000, subDetails: [] },
+        { kategoriId: 4, nominal: 50000000,  subDetails: [] }
       ]
     },
     {
       id: 12, tahun: 2026, bulan: 12, unit: 'Bagian Keuangan',
       details: [
-        { kategoriId: 1, nominal: 500000000 },
-        { kategoriId: 2, nominal: 200000000 },
-        { kategoriId: 3, nominal: 150000000 },
-        { kategoriId: 4, nominal: 50000000 }
+        { kategoriId: 1, nominal: 500000000, subDetails: [] },
+        { kategoriId: 2, nominal: 200000000, subDetails: [] },
+        { kategoriId: 3, nominal: 150000000, subDetails: [] },
+        { kategoriId: 4, nominal: 50000000,  subDetails: [] }
       ]
     }
   ],
 
+  // ============ REALISASI ============
   realisasis: [
     { id: 1, targetId: 1, tahun: 2026, bulan: 1, tanggal: '2026-01-15', nominal: 750000000, keterangan: 'Realisasi Januari', userId: 2 },
     { id: 2, targetId: 2, tahun: 2026, bulan: 2, tanggal: '2026-02-20', nominal: 680000000, keterangan: '', userId: 2 },
@@ -175,6 +235,7 @@ const SEED = {
     { id: 5, targetId: 5, tahun: 2026, bulan: 5, tanggal: '2026-05-25', nominal: 780000000, keterangan: '', userId: 2 }
   ],
 
+  // ============ PENGADAAN ============
   pengadaans: [
     { id: 'PGD-00045', nama: 'Kontrak A', jenisId: 1, statusId: 2, progress: 80, tahapanIds: [2, 3], createdAt: '2026-01-05' },
     { id: 'PGD-00046', nama: 'Tender B', jenisId: 1, statusId: 2, progress: 40, tahapanIds: [2], createdAt: '2026-02-10' },
@@ -182,11 +243,13 @@ const SEED = {
     { id: 'PGD-00048', nama: 'Jasa Konsultan D', jenisId: 3, statusId: 2, progress: 25, tahapanIds: [1], createdAt: '2026-04-20' }
   ],
 
+  // ============ KENDALA ============
   kendalas: [
     { id: 1, tanggal: '2026-09-15', periode: 9, kategoriId: 1, deskripsi: 'Dokumen belum lengkap', dampak: 'Menghambat pencairan', status: 'Proses', tindakLanjut: 'Melengkapi dokumen', userId: 2 },
     { id: 2, tanggal: '2026-09-20', periode: 9, kategoriId: 2, deskripsi: 'Spesifikasi belum final', dampak: 'Keterlambatan pengadaan', status: 'Selesai', tindakLanjut: 'Rapat koordinasi', userId: 2 }
   ],
 
+  // ============ AUDIT TRAIL ============
   auditTrail: [
     { id: 1, tanggal: '2026-09-29 09:43:00', userId: 2, userName: 'Ahmad', action: 'UPDATE', module: 'Realisasi', recordId: 'RLS-00021', before: 'Rp500.000.000', after: 'Rp750.000.000', ip: '127.0.0.1' },
     { id: 2, tanggal: '2026-09-28 16:20:00', userId: 3, userName: 'Budi', action: 'CREATE', module: 'Pengadaan', recordId: 'PGD-00045', before: '-', after: 'Paket Kontrak A', ip: '127.0.0.1' },
@@ -195,12 +258,22 @@ const SEED = {
     { id: 5, tanggal: '2026-09-25 09:00:00', userId: 3, userName: 'Budi', action: 'UPDATE', module: 'Realisasi', recordId: 'RLS-00018', before: 'Rp300.000.000', after: 'Rp420.000.000', ip: '127.0.0.1' }
   ],
 
-  meta: { nextUserId: 5, nextTargetId: 14, nextRealisasiId: 6, nextPengadaanNum: 49, nextKendalaId: 3, nextAuditId: 6 }
+  // ============ META (auto-increment counter) ============
+  meta: {
+    nextUserId: 5,
+    nextTargetId: 14,
+    nextRealisasiId: 6,
+    nextPengadaanNum: 49,
+    nextKendalaId: 3,
+    nextAuditId: 6
+  }
 };
 
-// ============ CORE ============
+// ============================================================
+// CORE — DB Object
+// ============================================================
 const DB = {
-  // Load DB dari localStorage, kalau belum ada seed
+  // Load dari localStorage, auto-seed kalau kosong
   load() {
     const raw = localStorage.getItem(DB_KEY);
     if (!raw) {
@@ -210,39 +283,42 @@ const DB = {
     try {
       return JSON.parse(raw);
     } catch (e) {
+      console.error('[DB] Data corrupt, reset ke SEED:', e);
       localStorage.setItem(DB_KEY, JSON.stringify(SEED));
       return JSON.parse(JSON.stringify(SEED));
     }
   },
 
+  // Simpan seluruh DB
   save(data) {
     localStorage.setItem(DB_KEY, JSON.stringify(data));
   },
 
+  // Reset ke kondisi awal
   reset() {
     localStorage.removeItem(DB_KEY);
     localStorage.removeItem(SESSION_KEY);
     return DB.load();
   },
 
-  // Helper getters
+  // Get collection
   get(key) {
     const db = DB.load();
     return db[key];
   },
 
+  // Set collection
   set(key, value) {
     const db = DB.load();
     db[key] = value;
     DB.save(db);
   },
 
-  // Insert dengan auto-increment ID untuk array of objects
+  // Insert item (auto-generate id kalau tidak ada)
   insert(collection, item, idField = 'id') {
     const db = DB.load();
     if (!db[collection]) db[collection] = [];
 
-    // Auto-generate ID jika array of object
     if (typeof item === 'object' && !Array.isArray(item)) {
       if (!item[idField]) {
         const maxId = db[collection].reduce((m, x) => Math.max(m, x[idField] || 0), 0);
@@ -254,6 +330,7 @@ const DB = {
     return item;
   },
 
+  // Update item by id
   update(collection, id, patch, idField = 'id') {
     const db = DB.load();
     const idx = db[collection].findIndex(x => x[idField] === id);
@@ -263,6 +340,7 @@ const DB = {
     return db[collection][idx];
   },
 
+  // Delete item by id
   remove(collection, id, idField = 'id') {
     const db = DB.load();
     const idx = db[collection].findIndex(x => x[idField] === id);
@@ -272,20 +350,24 @@ const DB = {
     return true;
   },
 
+  // Find single
   find(collection, predicate) {
     const db = DB.load();
     return (db[collection] || []).find(predicate);
   },
 
+  // Filter collection
   filter(collection, predicate) {
     const db = DB.load();
     return (db[collection] || []).filter(predicate);
   },
 
+  // Get meta
   meta() {
     return DB.load().meta;
   },
 
+  // Update meta
   updateMeta(patch) {
     const db = DB.load();
     db.meta = { ...db.meta, ...patch };
@@ -293,7 +375,9 @@ const DB = {
   }
 };
 
-// ============ AUDIT TRAIL ============
+// ============================================================
+// AUDIT TRAIL — Catat semua aksi CRUD
+// ============================================================
 function recordAudit({ action, module, recordId, before = '-', after = '-' }) {
   const user = AUTH.currentUser();
   const db = DB.load();
@@ -316,21 +400,28 @@ function recordAudit({ action, module, recordId, before = '-', after = '-' }) {
   DB.save(db);
 }
 
-// ============ BUSINESS HELPERS ============
+// ============================================================
+// BUSINESS HELPERS
+// ============================================================
+
+// Total target tahunan (legacy — pakai getTotalTargetTahunan untuk versi baru)
 function getTotalTarget(tahun) {
   return DB.filter('targets', t => t.tahun === tahun).reduce((s, t) => s + t.nominal, 0);
 }
 
+// Total realisasi tahunan
 function getTotalRealisasi(tahun) {
   return DB.filter('realisasis', r => r.tahun === tahun).reduce((s, r) => s + r.nominal, 0);
 }
 
+// Capaian tahunan (%)
 function getCapaian(tahun) {
   const t = getTotalTarget(tahun);
   const r = getTotalRealisasi(tahun);
   return t > 0 ? Math.round((r / t) * 100) : 0;
 }
 
+// Generate ID pengadaan berikutnya
 function generatePengadaanId() {
   const db = DB.load();
   const num = db.meta.nextPengadaanNum || 1;
@@ -339,12 +430,14 @@ function generatePengadaanId() {
   return 'PGD-' + String(num).padStart(5, '0');
 }
 
+// Format rupiah
 function formatRupiah(n) {
   if (typeof n === 'string') return n;
   if (n === null || n === undefined) return '-';
   return 'Rp' + Number(n).toLocaleString('id-ID');
 }
 
+// Format tanggal Indonesia
 function formatTanggal(s) {
   if (!s) return '-';
   const d = new Date(s);
@@ -352,22 +445,41 @@ function formatTanggal(s) {
   return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+// Nama bulan lengkap
 function monthName(m) {
   return ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][m-1] || '-';
 }
 
+// Nama bulan singkat
 function monthShort(m) {
   return ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'][m-1] || '-';
 }
 
-// ============ TARGET HELPERS ============
+// ============================================================
+// TARGET HELPERS — Mendukung subDetails
+// ============================================================
+
+/**
+ * Hitung nominal efektif dari 1 komponen.
+ * Prioritas:
+ * 1. Kalau punya subDetails (tidak kosong) → SUM semua subDetails
+ * 2. Kalau tidak → nominal langsung
+ */
+function getKomponenNominal(detail) {
+  if (!detail) return 0;
+  if (detail.subDetails && Array.isArray(detail.subDetails) && detail.subDetails.length > 0) {
+    return detail.subDetails.reduce((sum, s) => sum + (s.nominal || 0), 0);
+  }
+  return detail.nominal || 0;
+}
 
 /**
  * Hitung total target bulanan = SUM dari semua detail
+ * (kompatibel dengan yang punya subDetails maupun tidak)
  */
 function getTotalTargetBulanan(target) {
   if (!target || !target.details) return 0;
-  return target.details.reduce((sum, d) => sum + (d.nominal || 0), 0);
+  return target.details.reduce((sum, d) => sum + getKomponenNominal(d), 0);
 }
 
 /**
